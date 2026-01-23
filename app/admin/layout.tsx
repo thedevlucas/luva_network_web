@@ -93,13 +93,6 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
           {/* Logo */}
           <div className="p-6 border-b border-white/5">
             <Link href="/admin" className="flex items-center gap-3">
-              <Image
-                src={logoImg || "/placeholder.svg"}
-                alt="LuvaNetwork"
-                width={40}
-                height={40}
-                className="object-contain"
-              />
               <div>
                 <span className="font-display text-lg text-white block">
                   LUVA<span className="text-[#965CD9]">NETWORK</span>

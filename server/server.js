@@ -37,6 +37,14 @@ app.use(
   })
 );
 
+process.on("uncaughtException", (err) => {
+  console.error("[uncaughtException]", err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason);
+});
+
+
 // --- Helpers ---
 async function q(sql, params = []) {
   const [rows] = await pool.query(sql, params);
