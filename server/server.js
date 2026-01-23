@@ -1,0 +1,1259 @@
+const express = require("express");
+const mysql = require("mysql2/promise");
+const cors = require("cors");
+require("dotenv").config();
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+
+const app = express();
+
+// --- Config ---
+const PORT = process.env.PORT || 8080;
+const WEB_ORIGIN = process.env.WEB_ORIGIN || "http://localhost:3000";
+const JWT_SECRET = process.env.JWT_SECRET || "change-me-in-.env";
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+
+const DB_CONFIG = {
+  host: process.env.DB_HOST || "127.0.0.1",
+  port: Number(process.env.DB_PORT || 3306),
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASS || "",
+  database: process.env.DB_NAME || "hytale",
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+};
+
+const pool = mysql.createPool(DB_CONFIG);
+
+// --- Middleware ---
+app.use(express.json());
+app.use(
+  cors({
+    origin: WEB_ORIGIN,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+// --- Helpers ---
+async function q(sql, params = []) {
+  const [rows] = await pool.query(sql, params);
+  return rows;
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function toBool(v) {
+  return !!v && (v === true || v === 1 || v === "1");
+}
+
+function requireAuth(req, res, next) {
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!token) return res.status(401).json({ error: "Missing token" });
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.auth = decoded;
+    return next();
+  } catch (e) {
+    return res.status(401).json({ error: "Invalid token" });
+  }
+}
+
+function requireAdmin(req, res, next) {
+  if (!req.auth || req.auth.role !== "admin") {
+    return res.status(403).json({ error: "Admin only" });
+  }
+  return next();
+}
+
+// --- Schema / Migrations ---
+const defaultSettings = {
+  siteName: "LuvaNetwork",
+  siteDescription: "La mejor experiencia de Minecraft PvP en Latinoamerica",
+  logoUrl: "/app/assets/logoluva_1768898408478.png",
+  faviconUrl: "/favicon.ico",
+  serverIp: "play.LuvaNetwork.net",
+  serverPort: 25565,
+
+  discordUrl: "https://discord.gg/luvanetwork",
+  youtubeUrl: "https://youtube.com/@luvanetwork",
+  twitterUrl: "https://twitter.com/luvanetwork",
+  instagramUrl: "https://instagram.com/luvanetwork",
+  facebookUrl: "https://facebook.com/luvanetwork",
+
+  serverMaintenance: false,
+  serverMaintenanceMessage: "El servidor esta en mantenimiento. Vuelve pronto!",
+  webMaintenance: false,
+  webMaintenanceMessage: "Estamos realizando mejoras en el sitio. Vuelve pronto!",
+  webMaintenanceEndDate: null,
+  webMaintenanceShowCountdown: false,
+};
+
+async function ensureSchema() {
+  // admin passwords table (bound to existing `users` table)
+  await q(`
+    CREATE TABLE IF NOT EXISTS admin_users (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      user_id BIGINT UNSIGNED NOT NULL,
+      password_hash VARCHAR(255) NOT NULL,
+      role VARCHAR(32) NOT NULL DEFAULT 'admin',
+      last_login DATETIME NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_admin_user_user_id (user_id),
+      KEY idx_admin_user_role (role)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  // Settings table (single row id=1)
+  await q(`
+    CREATE TABLE IF NOT EXISTS web_settings (
+      id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
+      site_name VARCHAR(120) NOT NULL,
+      site_description VARCHAR(255) NOT NULL,
+      logo_url VARCHAR(255) NOT NULL,
+      favicon_url VARCHAR(255) NOT NULL,
+      server_ip VARCHAR(120) NOT NULL,
+      server_port INT NOT NULL,
+
+      discord_url VARCHAR(255) NOT NULL,
+      youtube_url VARCHAR(255) NOT NULL,
+      twitter_url VARCHAR(255) NOT NULL,
+      instagram_url VARCHAR(255) NOT NULL,
+      facebook_url VARCHAR(255) NOT NULL,
+
+      server_maintenance TINYINT(1) NOT NULL DEFAULT 0,
+      server_maintenance_message VARCHAR(255) NOT NULL,
+      web_maintenance TINYINT(1) NOT NULL DEFAULT 0,
+      web_maintenance_message VARCHAR(255) NOT NULL,
+      web_maintenance_end_date DATETIME NULL,
+      web_maintenance_show_countdown TINYINT(1) NOT NULL DEFAULT 0,
+
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  // Ranks store
+  await q(`
+    CREATE TABLE IF NOT EXISTS ranks (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(80) NOT NULL,
+      display_name VARCHAR(120) NOT NULL,
+      price DECIMAL(10,2) NOT NULL DEFAULT 0,
+      color VARCHAR(16) NOT NULL DEFAULT '#965CD9',
+      sort_order INT NOT NULL DEFAULT 0,
+      is_popular TINYINT(1) NOT NULL DEFAULT 0,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      KEY idx_ranks_order (sort_order)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  await q(`
+    CREATE TABLE IF NOT EXISTS rank_benefits (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      rank_id BIGINT UNSIGNED NOT NULL,
+      text VARCHAR(255) NOT NULL,
+      sort_order INT NOT NULL DEFAULT 0,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      KEY idx_rank_benefits_rank (rank_id),
+      KEY idx_rank_benefits_order (sort_order),
+      CONSTRAINT fk_rank_benefits_rank FOREIGN KEY (rank_id) REFERENCES ranks(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  // News posts
+  await q(`
+    CREATE TABLE IF NOT EXISTS news_posts (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      slug VARCHAR(150) NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      excerpt TEXT NOT NULL,
+      content LONGTEXT NOT NULL,
+      cover_image_url VARCHAR(255) NOT NULL DEFAULT '',
+      category VARCHAR(80) NOT NULL DEFAULT 'Novedad',
+      author VARCHAR(120) NOT NULL DEFAULT 'LuvaNetwork',
+      is_published TINYINT(1) NOT NULL DEFAULT 0,
+      published_at DATETIME NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_news_slug (slug),
+      KEY idx_news_published (is_published, published_at),
+      KEY idx_news_created (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  // Seed settings row if missing
+  const existing = await q("SELECT id FROM web_settings WHERE id = 1 LIMIT 1");
+  if (!existing || existing.length === 0) {
+    await q(
+      `
+      INSERT INTO web_settings (
+        id,
+        site_name, site_description, logo_url, favicon_url, server_ip, server_port,
+        discord_url, youtube_url, twitter_url, instagram_url, facebook_url,
+        server_maintenance, server_maintenance_message,
+        web_maintenance, web_maintenance_message, web_maintenance_end_date, web_maintenance_show_countdown
+      ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+      [
+        defaultSettings.siteName,
+        defaultSettings.siteDescription,
+        defaultSettings.logoUrl,
+        defaultSettings.faviconUrl,
+        defaultSettings.serverIp,
+        defaultSettings.serverPort,
+        defaultSettings.discordUrl,
+        defaultSettings.youtubeUrl,
+        defaultSettings.twitterUrl,
+        defaultSettings.instagramUrl,
+        defaultSettings.facebookUrl,
+        defaultSettings.serverMaintenance ? 1 : 0,
+        defaultSettings.serverMaintenanceMessage,
+        defaultSettings.webMaintenance ? 1 : 0,
+        defaultSettings.webMaintenanceMessage,
+        defaultSettings.webMaintenanceEndDate ? new Date(defaultSettings.webMaintenanceEndDate) : null,
+        defaultSettings.webMaintenanceShowCountdown ? 1 : 0,
+      ]
+    );
+  }
+}
+
+function mapSettingsRow(row) {
+  return {
+    siteName: row.site_name,
+    siteDescription: row.site_description,
+    logoUrl: row.logo_url,
+    faviconUrl: row.favicon_url,
+    serverIp: row.server_ip,
+    serverPort: Number(row.server_port),
+
+    discordUrl: row.discord_url,
+    youtubeUrl: row.youtube_url,
+    twitterUrl: row.twitter_url,
+    instagramUrl: row.instagram_url,
+    facebookUrl: row.facebook_url,
+
+    serverMaintenance: toBool(row.server_maintenance),
+    serverMaintenanceMessage: row.server_maintenance_message,
+    webMaintenance: toBool(row.web_maintenance),
+    webMaintenanceMessage: row.web_maintenance_message,
+    webMaintenanceEndDate: row.web_maintenance_end_date
+      ? new Date(row.web_maintenance_end_date).toISOString()
+      : null,
+    webMaintenanceShowCountdown: toBool(row.web_maintenance_show_countdown),
+  };
+}
+
+function metricValue(stat, metric) {
+  if (metric === "kills") return stat.kills;
+  if (metric === "wins") return stat.wins;
+  return stat.playtime;
+}
+
+const VALID_MODES = ["skywars", "survival", "duels"];
+const VALID_METRICS = ["kills", "wins", "playtime"];
+
+const fakePlayers = [
+  { id: 1, username: "NicoPvP", avatarUrl: "https://api.dicebear.com/9.x/bottts/png?seed=NicoPvP", rank: "MVP" },
+  { id: 2, username: "LunaGG", avatarUrl: "https://api.dicebear.com/9.x/bottts/png?seed=LunaGG", rank: "VIP" },
+  { id: 3, username: "RataDeLobby", avatarUrl: "https://api.dicebear.com/9.x/bottts/png?seed=RataDeLobby", rank: "ELITE" },
+  { id: 4, username: "Tryhardcito", avatarUrl: "https://api.dicebear.com/9.x/bottts/png?seed=Tryhardcito", rank: "MVP+" },
+  { id: 5, username: "MatiDuels", avatarUrl: "https://api.dicebear.com/9.x/bottts/png?seed=MatiDuels", rank: "DEFAULT" },
+];
+
+const fakeStats = [
+  { playerId: 1, gameMode: "skywars", kills: 3210, wins: 420, playtime: 9800 },
+  { playerId: 2, gameMode: "skywars", kills: 2890, wins: 390, playtime: 8700 },
+  { playerId: 3, gameMode: "skywars", kills: 2500, wins: 310, playtime: 9100 },
+  { playerId: 4, gameMode: "skywars", kills: 2300, wins: 280, playtime: 7600 },
+  { playerId: 5, gameMode: "skywars", kills: 1900, wins: 210, playtime: 5400 },
+
+  { playerId: 1, gameMode: "survival", kills: 480, wins: 55, playtime: 12400 },
+  { playerId: 2, gameMode: "survival", kills: 320, wins: 28, playtime: 9800 },
+  { playerId: 3, gameMode: "survival", kills: 910, wins: 77, playtime: 15000 },
+  { playerId: 4, gameMode: "survival", kills: 210, wins: 19, playtime: 6200 },
+  { playerId: 5, gameMode: "survival", kills: 150, wins: 12, playtime: 4100 },
+
+  { playerId: 1, gameMode: "duels", kills: 1200, wins: 640, playtime: 3200 },
+  { playerId: 2, gameMode: "duels", kills: 880, wins: 430, playtime: 2400 },
+  { playerId: 3, gameMode: "duels", kills: 760, wins: 390, playtime: 2100 },
+  { playerId: 4, gameMode: "duels", kills: 1500, wins: 820, playtime: 4100 },
+  { playerId: 5, gameMode: "duels", kills: 620, wins: 300, playtime: 1900 },
+];
+
+// --- leaderboard (FAKE) ---
+app.get("/api/leaderboard/:gameMode/:metric", (req, res) => {
+  const { gameMode, metric } = req.params;
+
+  if (!VALID_MODES.includes(gameMode)) {
+    return res.status(400).json({ message: "Invalid gameMode", field: "gameMode" });
+  }
+  if (!VALID_METRICS.includes(metric)) {
+    return res.status(400).json({ message: "Invalid metric", field: "metric" });
+  }
+
+  const rows = fakeStats
+    .filter((s) => s.gameMode === gameMode)
+    .map((s) => {
+      const p = fakePlayers.find((pp) => pp.id === s.playerId);
+      return {
+        username: p?.username ?? "Unknown",
+        avatarUrl: p?.avatarUrl ?? "",
+        rank: p?.rank ?? "DEFAULT",
+        value: metricValue(s, metric),
+      };
+    })
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10);
+
+  res.json(rows);
+});
+
+// --- player profile (FAKE) ---
+app.get("/api/players/get/:username", (req, res) => {
+  const username = req.params.username;
+
+  const player = fakePlayers.find((p) => p.username.toLowerCase() === username.toLowerCase());
+  if (!player) return res.status(404).json({ message: "Player not found" });
+
+  const stats = fakeStats.filter((s) => s.playerId === player.id);
+
+  res.json({ ...player, stats });
+});
+
+// --- Auth ---
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    if (!username || !password) {
+      return res.status(400).json({ error: "Missing username/password" });
+    }
+
+    // Must exist in users table
+    const users = await q(
+      "SELECT id, username FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1",
+      [username]
+    );
+    if (!users || users.length === 0) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+    const user = users[0];
+
+    // Must be in group 'admin'
+    const adminGroup = await q(
+      `SELECT 1 AS ok
+       FROM user_groups ug
+       JOIN \`groups\` g ON g.id = ug.group_id
+       WHERE ug.user_id = ? AND g.name = 'admin'
+       LIMIT 1`,
+      [user.id]
+    );
+    if (!adminGroup || adminGroup.length === 0) {
+      return res.status(403).json({ error: "Admin only" });
+    }
+
+    // Must have a password hash configured in admin_users
+    const adminUsers = await q(
+      "SELECT password_hash FROM admin_users WHERE user_id = ? LIMIT 1",
+      [user.id]
+    );
+    if (!adminUsers || adminUsers.length === 0) {
+      return res.status(401).json({ error: "Admin password not set" });
+    }
+
+    const ok = await bcrypt.compare(password, adminUsers[0].password_hash);
+    if (!ok) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    await q("UPDATE admin_users SET last_login = NOW() WHERE user_id = ?", [user.id]);
+
+    const token = jwt.sign(
+      { userId: user.id, username: user.username, role: "admin" },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+
+    return res.json({ token, user: { id: user.id, username: user.username, role: "admin" } });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// --- Settings ---
+app.get("/api/settings/general", async (req, res) => {
+  try {
+    const rows = await q("SELECT * FROM web_settings WHERE id = 1 LIMIT 1");
+    if (!rows || rows.length === 0) {
+      await ensureSchema();
+      const rows2 = await q("SELECT * FROM web_settings WHERE id = 1 LIMIT 1");
+      return res.json(mapSettingsRow(rows2[0]));
+    }
+    return res.json(mapSettingsRow(rows[0]));
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+app.put("/api/settings/general", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const payload = req.body || {};
+    // Only allow known fields
+    const allowed = {
+      siteName: "site_name",
+      siteDescription: "site_description",
+      logoUrl: "logo_url",
+      faviconUrl: "favicon_url",
+      serverIp: "server_ip",
+      serverPort: "server_port",
+      discordUrl: "discord_url",
+      youtubeUrl: "youtube_url",
+      twitterUrl: "twitter_url",
+      instagramUrl: "instagram_url",
+      facebookUrl: "facebook_url",
+      serverMaintenance: "server_maintenance",
+      serverMaintenanceMessage: "server_maintenance_message",
+      webMaintenance: "web_maintenance",
+      webMaintenanceMessage: "web_maintenance_message",
+      webMaintenanceEndDate: "web_maintenance_end_date",
+      webMaintenanceShowCountdown: "web_maintenance_show_countdown",
+    };
+
+    const sets = [];
+    const values = [];
+    for (const [k, col] of Object.entries(allowed)) {
+      if (typeof payload[k] === "undefined") continue;
+
+      if (k === "serverPort") {
+        sets.push(`${col} = ?`);
+        values.push(Number(payload[k]) || 0);
+      } else if (k.endsWith("Maintenance") || k.endsWith("ShowCountdown")) {
+        sets.push(`${col} = ?`);
+        values.push(payload[k] ? 1 : 0);
+      } else if (k === "webMaintenanceEndDate") {
+        sets.push(`${col} = ?`);
+        values.push(payload[k] ? new Date(payload[k]) : null);
+      } else {
+        sets.push(`${col} = ?`);
+        values.push(payload[k]);
+      }
+    }
+
+    if (sets.length > 0) {
+      values.push(1);
+      await q(`UPDATE web_settings SET ${sets.join(", ")} WHERE id = ?`, values);
+    }
+
+    const rows = await q("SELECT * FROM web_settings WHERE id = 1 LIMIT 1");
+    return res.json(mapSettingsRow(rows[0]));
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// --- Ranks ---
+async function fetchRanks() {
+  const ranks = await q("SELECT * FROM ranks ORDER BY sort_order ASC, id ASC");
+  if (!ranks || ranks.length === 0) return [];
+
+  const ids = ranks.map((r) => r.id);
+  const benefits = await q(
+    `SELECT * FROM rank_benefits WHERE rank_id IN (${ids.map(() => "?").join(",")})
+     ORDER BY rank_id ASC, \`order\` ASC, id ASC`,
+    ids
+  );
+
+  const benefitByRank = new Map();
+  for (const b of benefits) {
+    const key = String(b.rank_id);
+    if (!benefitByRank.has(key)) benefitByRank.set(key, []);
+    benefitByRank.get(key).push({
+      id: String(b.id),
+      text: b.text,
+      order: Number(b.sort_order),
+    });
+  }
+
+  return ranks.map((r) => ({
+    id: String(r.id),
+    name: r.name,
+    displayName: r.display_name,
+    price: Number(r.price),
+    color: r.color,
+    order: Number(r.sort_order),
+    benefits: benefitByRank.get(String(r.id)) || [],
+    isPopular: toBool(r.is_popular),
+  }));
+}
+
+async function fetchRankById(id) {
+  const ranks = await q("SELECT * FROM ranks WHERE id = ? LIMIT 1", [id]);
+  if (!ranks || ranks.length === 0) return null;
+  const benefits = await q(
+    "SELECT * FROM rank_benefits WHERE rank_id = ? ORDER BY sort_order ASC, id ASC",
+    [id]
+  );
+  return {
+    id: String(ranks[0].id),
+    name: ranks[0].name,
+    displayName: ranks[0].display_name,
+    price: Number(ranks[0].price),
+    color: ranks[0].color,
+    order: Number(ranks[0].sort_order),
+    benefits: benefits.map((b) => ({
+      id: String(b.id),
+      text: b.text,
+      order: Number(b.sort_order),
+    })),
+    isPopular: toBool(ranks[0].is_popular),
+  };
+}
+
+app.get("/api/ranks", async (req, res) => {
+  try {
+    const data = await fetchRanks();
+    return res.json(data);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+app.post("/api/admin/ranks", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.name || !b.displayName) return res.status(400).json({ error: "Missing fields" });
+
+    const result = await pool.query(
+      `INSERT INTO ranks (name, display_name, price, color, \`order\`, is_popular)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        b.name,
+        b.displayName,
+        Number(b.price) || 0,
+        b.color || "#965CD9",
+        Number(b.order) || 0,
+        b.isPopular ? 1 : 0,
+      ]
+    );
+    const insertId = result[0].insertId;
+
+    const benefits = Array.isArray(b.benefits) ? b.benefits : [];
+    for (const ben of benefits) {
+      await q(
+        "INSERT INTO rank_benefits (rank_id, text, sort_order) VALUES (?, ?, ?)",
+        [insertId, String(ben.text || ""), Number(ben.order) || 0]
+      );
+    }
+
+    const rank = await fetchRankById(insertId);
+    return res.json(rank);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+app.put("/api/admin/ranks/:id", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const b = req.body || {};
+
+    const rows = await q("SELECT id FROM ranks WHERE id = ? LIMIT 1", [id]);
+    if (!rows || rows.length === 0) return res.status(404).json({ error: "Not found" });
+
+    const sets = [];
+    const vals = [];
+    const mapping = {
+      name: "name",
+      displayName: "display_name",
+      price: "price",
+      color: "color",
+      order: "sort_order",
+      isPopular: "is_popular",
+    };
+    for (const [k, col] of Object.entries(mapping)) {
+      if (typeof b[k] === "undefined") continue;
+      if (k === "isPopular") {
+        sets.push(`${col} = ?`);
+        vals.push(b[k] ? 1 : 0);
+      } else if (k === "price" || k === "order") {
+        sets.push(`${col} = ?`);
+        vals.push(Number(b[k]) || 0);
+      } else {
+        sets.push(`${col} = ?`);
+        vals.push(b[k]);
+      }
+    }
+    if (sets.length > 0) {
+      vals.push(id);
+      await q(`UPDATE ranks SET ${sets.join(", ")} WHERE id = ?`, vals);
+    }
+
+    if (Array.isArray(b.benefits)) {
+      await q("DELETE FROM rank_benefits WHERE rank_id = ?", [id]);
+      for (const ben of b.benefits) {
+        await q(
+          "INSERT INTO rank_benefits (rank_id, text, sort_order) VALUES (?, ?, ?)",
+          [id, String(ben.text || ""), Number(ben.order) || 0]
+        );
+      }
+    }
+
+    const rank = await fetchRankById(id);
+    return res.json(rank);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+app.delete("/api/admin/ranks/:id", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    await q("DELETE FROM ranks WHERE id = ?", [id]);
+    return res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// --- News ---
+function mapNewsRow(row) {
+  return {
+    id: String(row.id),
+    slug: row.slug,
+    title: row.title,
+    excerpt: row.excerpt,
+    content: row.content,
+    coverImageUrl: row.cover_image_url,
+    category: row.category,
+    author: row.author,
+    isPublished: toBool(row.is_published),
+    publishedAt: row.published_at ? new Date(row.published_at).toISOString() : nowIso(),
+    createdAt: new Date(row.created_at).toISOString(),
+    updatedAt: new Date(row.updated_at).toISOString(),
+  };
+}
+
+app.get("/api/news", async (req, res) => {
+  try {
+    const rows = await q(
+      `SELECT * FROM news_posts
+       WHERE is_published = 1
+       ORDER BY published_at DESC, created_at DESC`
+    );
+    const data = rows.map((r) => ({
+      id: String(r.id),
+      slug: r.slug,
+      title: r.title,
+      excerpt: r.excerpt,
+      content: r.content,
+      coverImageUrl: r.cover_image_url,
+      createdAt: new Date(r.created_at).toISOString(),
+    }));
+    return res.json(data);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+app.get("/api/news/:slug", async (req, res) => {
+  try {
+    const slug = req.params.slug;
+    const rows = await q(
+      `SELECT * FROM news_posts
+       WHERE slug = ? AND is_published = 1
+       LIMIT 1`,
+      [slug]
+    );
+    if (!rows || rows.length === 0) return res.status(404).json({ error: "Not found" });
+    const r = rows[0];
+    return res.json({
+      id: String(r.id),
+      slug: r.slug,
+      title: r.title,
+      excerpt: r.excerpt,
+      content: r.content,
+      coverImageUrl: r.cover_image_url,
+      category: r.category || "Novedad",
+      author: r.author || "LuvaNetwork",
+      createdAt: new Date(r.created_at).toISOString(),
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+app.get("/api/admin/news", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const rows = await q(`SELECT * FROM news_posts ORDER BY created_at DESC`);
+    return res.json(rows.map(mapNewsRow));
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+app.post("/api/admin/news", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.slug || !b.title) return res.status(400).json({ error: "Missing fields" });
+
+    const isPublished = !!b.isPublished;
+    const publishedAt = isPublished ? (b.publishedAt ? new Date(b.publishedAt) : new Date()) : null;
+
+    const result = await pool.query(
+      `INSERT INTO news_posts
+        (slug, title, excerpt, content, cover_image_url, category, author, is_published, published_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        b.slug,
+        b.title,
+        b.excerpt || "",
+        b.content || "",
+        b.coverImageUrl || "",
+        b.category || "Novedad",
+        b.author || req.auth.username,
+        isPublished ? 1 : 0,
+        publishedAt,
+      ]
+    );
+    const insertId = result[0].insertId;
+    const rows = await q("SELECT * FROM news_posts WHERE id = ? LIMIT 1", [insertId]);
+    return res.json(mapNewsRow(rows[0]));
+  } catch (err) {
+    console.error(err);
+    // duplicate slug
+    if (String(err && err.code) === "ER_DUP_ENTRY") {
+      return res.status(409).json({ error: "Slug already exists" });
+    }
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+app.put("/api/admin/news/:id", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const b = req.body || {};
+
+    const rows = await q("SELECT * FROM news_posts WHERE id = ? LIMIT 1", [id]);
+    if (!rows || rows.length === 0) return res.status(404).json({ error: "Not found" });
+
+    const allowed = {
+      slug: "slug",
+      title: "title",
+      excerpt: "excerpt",
+      content: "content",
+      coverImageUrl: "cover_image_url",
+      category: "category",
+      author: "author",
+      isPublished: "is_published",
+      publishedAt: "published_at",
+    };
+
+    const sets = [];
+    const vals = [];
+    for (const [k, col] of Object.entries(allowed)) {
+      if (typeof b[k] === "undefined") continue;
+
+      if (k === "isPublished") {
+        sets.push(`${col} = ?`);
+        vals.push(b[k] ? 1 : 0);
+        // If toggling to published and no publishedAt, set NOW()
+        if (b[k] && typeof b.publishedAt === "undefined") {
+          sets.push(`published_at = COALESCE(published_at, NOW())`);
+        }
+        if (!b[k]) {
+          sets.push(`published_at = NULL`);
+        }
+      } else if (k === "publishedAt") {
+        sets.push(`${col} = ?`);
+        vals.push(b[k] ? new Date(b[k]) : null);
+      } else {
+        sets.push(`${col} = ?`);
+        vals.push(b[k]);
+      }
+    }
+
+    if (sets.length > 0) {
+      vals.push(id);
+      await q(`UPDATE news_posts SET ${sets.join(", ")} WHERE id = ?`, vals);
+    }
+
+    const updated = await q("SELECT * FROM news_posts WHERE id = ? LIMIT 1", [id]);
+    return res.json(mapNewsRow(updated[0]));
+  } catch (err) {
+    console.error(err);
+    if (String(err && err.code) === "ER_DUP_ENTRY") {
+      return res.status(409).json({ error: "Slug already exists" });
+    }
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+app.delete("/api/admin/news/:id", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    await q("DELETE FROM news_posts WHERE id = ?", [id]);
+    return res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// --- Admin stats / users ---
+app.get("/api/admin/stats", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const [totalUsersRow] = await q("SELECT COUNT(*) AS c FROM users");
+    const [totalRanksRow] = await q("SELECT COUNT(*) AS c FROM ranks");
+    const [totalNewsRow] = await q("SELECT COUNT(*) AS c FROM news_posts");
+    const [publishedNewsRow] = await q("SELECT COUNT(*) AS c FROM news_posts WHERE is_published = 1");
+
+    const windowSeconds = Number(process.env.ONLINE_WINDOW_SECONDS || 90);
+    const [onlineRow] = await q(
+      "SELECT COUNT(*) AS c FROM users WHERE last_seen >= (NOW() - INTERVAL ? SECOND)",
+      [windowSeconds]
+    );
+
+    return res.json({
+      totalUsers: Number(totalUsersRow?.c || 0),
+      totalNews: Number(totalNewsRow?.c || 0),
+      publishedNews: Number(publishedNewsRow?.c || 0),
+      totalRanks: Number(totalRanksRow?.c || 0),
+      onlineUsers: Number(onlineRow?.c || 0),
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const rows = await q(
+      `
+      SELECT
+         u.id,
+         u.username,
+         u.uuid,
+         u.joined_at,
+         u.last_seen,
+         u.playtime_seconds,
+         MAX(CASE WHEN ug.is_primary = 1 THEN g.name END) AS primary_group,
+         GROUP_CONCAT(g.name ORDER BY g.name SEPARATOR ',') AS \`groups\`
+       FROM users u
+       LEFT JOIN user_groups ug ON ug.user_id = u.id
+       LEFT JOIN \`groups\` g ON g.id = ug.group_id
+       GROUP BY u.id
+       ORDER BY u.last_seen DESC
+    `
+    );
+
+    const data = rows.map((r) => ({
+      id: Number(r.id),
+      username: r.username,
+      uuid: r.uuid,
+      joinedAt: new Date(r.joined_at).toISOString(),
+      lastSeen: new Date(r.last_seen).toISOString(),
+      playtimeSeconds: Number(r.playtime_seconds || 0),
+      primaryGroup: r.primary_group || "default",
+      groups: r.groups ? String(r.groups).split(",").filter(Boolean) : [],
+    }));
+
+    return res.json(data);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// Existing public endpoints: players online + player stats
+app.get("/api/players/online", async (req, res) => {
+  try {
+    const windowSeconds = Number(process.env.ONLINE_WINDOW_SECONDS || 90);
+    const rows = await q(
+      `
+      SELECT username, uuid, last_seen
+      FROM users
+      WHERE last_seen >= (NOW() - INTERVAL ? SECOND)
+      ORDER BY last_seen DESC
+    `,
+      [windowSeconds]
+    );
+
+    const data = rows.map((u) => ({
+      username: u.username,
+      uuid: u.uuid,
+      lastSeen: new Date(u.last_seen).toISOString(),
+    }));
+
+    return res.json({ windowSeconds, count: data.length, players: data });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+app.get("/api/players/get/:uuid", async (req, res) => {
+  try {
+    const { uuid } = req.params;
+    const rows = await q(
+      `
+      SELECT id, username, uuid, joined_at, last_seen, playtime_seconds
+      FROM users
+      WHERE uuid = ?
+      LIMIT 1
+    `,
+      [uuid]
+    );
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ error: "Player not found" });
+    }
+
+    const u = rows[0];
+    return res.json({
+      id: Number(u.id),
+      username: u.username,
+      uuid: u.uuid,
+      joinedAt: new Date(u.joined_at).toISOString(),
+      lastSeen: new Date(u.last_seen).toISOString(),
+      playtimeSeconds: Number(u.playtime_seconds || 0),
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// Online "estimado": last_seen dentro de los últimos N segundos
+app.get("/api/players/online_count", async (_req, res) => {
+  const windowSeconds = Number(process.env.ONLINE_WINDOW_SECONDS ?? 90);
+
+  try {
+    const [rows] = await pool.query(
+      `
+      SELECT COUNT(*) AS online
+      FROM users
+      WHERE last_seen >= (NOW() - INTERVAL ? SECOND)
+      `,
+      [windowSeconds]
+    );
+
+    res.json({ online: Number(rows?.[0]?.online ?? 0), windowSeconds });
+  } catch (e) {
+    res.status(500).json({ message: "DB error", error: String(e?.message ?? e) });
+  }
+});
+
+app.get("/api/players/count", async (_req, res) => {
+  try {
+    const [rows] = await pool.query(`SELECT COUNT(*) AS total FROM users`);
+    res.json({ total: Number(rows?.[0]?.total ?? 0) });
+  } catch (e) {
+    res.status(500).json({ message: "DB error", error: String(e?.message ?? e) });
+  }
+});
+
+app.get("/api/players/hours_count", async (_req, res) => {
+  try {
+    // Si no existe la columna, esto va a fallar: ahí me pasás db.sql y lo adapto.
+    const [rows] = await pool.query(
+      `
+      SELECT COALESCE(SUM(playtime_seconds), 0) AS totalSeconds
+      FROM users
+      `
+    );
+
+    const totalSeconds = Number(rows?.[0]?.totalSeconds ?? 0);
+    const totalHours = totalSeconds / 3600;
+
+    res.json({
+      totalSeconds,
+      totalHours: Math.round(totalHours * 100) / 100,
+    });
+  } catch (e) {
+    // fallback “amigable”
+    res.status(500).json({
+      message: "DB error (probablemente falta users.playtime_seconds). Subime tu db.sql y lo adapto.",
+      error: String(e?.message ?? e),
+    });
+  }
+});
+
+// =====================
+// GROUPS MANAGEMENT
+// =====================
+
+// GET /api/admin/groups - List all groups with permission count
+app.get("/api/admin/groups", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const groups = await q(`
+      SELECT
+        g.id,
+        g.name,
+        g.display_name,
+        g.weight,
+        g.is_default,
+        'group' AS type,
+        (SELECT COUNT(*) FROM group_permissions gp WHERE gp.group_id = g.id) AS permission_count,
+        (SELECT COUNT(*) FROM user_groups ug WHERE ug.group_id = g.id) AS member_count
+      FROM \`groups\` g
+      ORDER BY g.name ASC
+    `);
+
+    res.json(
+      groups.map((g) => ({
+        id: Number(g.id),
+        name: g.name,
+        displayName: g.display_name ?? g.name,
+        weight: Number(g.weight ?? 0),
+        isDefault: !!Number(g.is_default ?? 0),
+        type: g.type || "group",
+        permissionCount: Number(g.permission_count || 0),
+        memberCount: Number(g.member_count || 0),
+      }))
+    );
+  } catch (e) {
+    console.error("GET /api/admin/groups error:", e);
+    res.status(500).json({ error: "DB error", details: String(e?.message ?? e) });
+  }
+});
+
+
+
+// GET /api/admin/groups/:name - Get single group with all permissions
+app.get("/api/admin/groups/:name", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const groupName = String(req.params.name || "");
+
+    const rows = await q(
+      `
+      SELECT
+        id,
+        name,
+        display_name,
+        weight,
+        is_default,
+        'group' AS type
+      FROM \`groups\`
+      WHERE name = ?
+      LIMIT 1
+      `,
+      [groupName]
+    );
+
+    const g = rows?.[0];
+    if (!g) return res.status(404).json({ error: "Group not found" });
+
+    // Si además devolvés permisos, acá podés consultarlos por group_id
+    const perms = await q(
+      `
+      SELECT permission, value, server, world
+      FROM group_permissions
+      WHERE group_id = ?
+      ORDER BY permission ASC
+      `,
+      [g.id]
+    );
+
+    return res.json({
+      id: Number(g.id),
+      name: g.name,
+      displayName: g.display_name ?? g.name,
+      weight: Number(g.weight ?? 0),
+      isDefault: !!Number(g.is_default ?? 0),
+      type: g.type, // "group"
+      permissions: perms.map((p) => ({
+        permission: p.permission,
+        value: Number(p.value ?? 0),
+        server: p.server ?? "",
+        world: p.world ?? "",
+      })),
+    });
+  } catch (e) {
+    console.error("GET /api/admin/groups/:name error:", e);
+    return res.status(500).json({ error: "DB error", details: String(e?.message ?? e) });
+  }
+});
+
+
+// POST /api/admin/groups/:name/permissions - Add permission to group
+app.post("/api/admin/groups/:name/permissions", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const groupName = req.params.name;
+    const { permission, value = true, server = "global", world = "global" } = req.body || {};
+
+    if (!permission) {
+      return res.status(400).json({ error: "Permission is required" });
+    }
+
+    // Check group exists
+    const groups = await q("SELECT id FROM `groups` WHERE name = ? LIMIT 1", [groupName]);
+    if (!groups || groups.length === 0) {
+      return res.status(404).json({ error: "Group not found" });
+    }
+
+    // Check if permission already exists
+    const existing = await q(
+      "SELECT id FROM group_permissions WHERE name = ? AND permission = ? LIMIT 1",
+      [groupName, permission]
+    );
+
+    if (existing && existing.length > 0) {
+      return res.status(400).json({ error: "Permission already exists for this group" });
+    }
+
+    // Insert permission
+    await q(
+      `INSERT INTO group_permissions (name, permission, value, server, world, expiry, contexts)
+       VALUES (?, ?, ?, ?, ?, 0, '{}')`,
+      [groupName, permission, value ? 1 : 0, server, world]
+    );
+
+    res.json({ success: true, message: "Permission added" });
+  } catch (e) {
+    console.error("POST /api/admin/groups/:name/permissions error:", e);
+    res.status(500).json({ error: "DB error", details: String(e?.message ?? e) });
+  }
+});
+
+// DELETE /api/admin/groups/:name/permissions/:permissionId - Remove permission from group
+app.delete("/api/admin/groups/:name/permissions/:permissionId", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { name: groupName, permissionId } = req.params;
+
+    // Verify permission belongs to group
+    const perms = await q(
+      "SELECT id FROM group_permissions WHERE id = ? AND name = ? LIMIT 1",
+      [permissionId, groupName]
+    );
+
+    if (!perms || perms.length === 0) {
+      return res.status(404).json({ error: "Permission not found for this group" });
+    }
+
+    await q("DELETE FROM group_permissions WHERE id = ?", [permissionId]);
+
+    res.json({ success: true, message: "Permission removed" });
+  } catch (e) {
+    console.error("DELETE /api/admin/groups/:name/permissions/:permissionId error:", e);
+    res.status(500).json({ error: "DB error", details: String(e?.message ?? e) });
+  }
+});
+
+// PATCH /api/admin/groups/:name/permissions/:permissionId - Update permission value
+app.patch("/api/admin/groups/:name/permissions/:permissionId", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { name: groupName, permissionId } = req.params;
+    const { value } = req.body || {};
+
+    if (value === undefined) {
+      return res.status(400).json({ error: "Value is required" });
+    }
+
+    // Verify permission belongs to group
+    const perms = await q(
+      "SELECT id FROM group_permissions WHERE id = ? AND name = ? LIMIT 1",
+      [permissionId, groupName]
+    );
+
+    if (!perms || perms.length === 0) {
+      return res.status(404).json({ error: "Permission not found for this group" });
+    }
+
+    await q("UPDATE group_permissions SET value = ? WHERE id = ?", [value ? 1 : 0, permissionId]);
+
+    res.json({ success: true, message: "Permission updated" });
+  } catch (e) {
+    console.error("PATCH /api/admin/groups/:name/permissions/:permissionId error:", e);
+    res.status(500).json({ error: "DB error", details: String(e?.message ?? e) });
+  }
+});
+
+// POST /api/admin/groups - Create new group
+app.post("/api/admin/groups", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { name, type = "group" } = req.body || {};
+
+    if (!name) {
+      return res.status(400).json({ error: "Group name is required" });
+    }
+
+    // Check if group already exists
+    const existing = await q("SELECT id FROM `groups` WHERE name = ? LIMIT 1", [name]);
+    if (existing && existing.length > 0) {
+      return res.status(400).json({ error: "Group already exists" });
+    }
+
+    await q("INSERT INTO `groups` (name, type) VALUES (?, ?)", [name, type]);
+
+    res.json({ success: true, message: "Group created" });
+  } catch (e) {
+    console.error("POST /api/admin/groups error:", e);
+    res.status(500).json({ error: "DB error", details: String(e?.message ?? e) });
+  }
+});
+
+// DELETE /api/admin/groups/:name - Delete group
+app.delete("/api/admin/groups/:name", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const groupName = req.params.name;
+
+    // Prevent deleting default group
+    if (groupName === "default") {
+      return res.status(400).json({ error: "Cannot delete default group" });
+    }
+
+    // Check group exists
+    const groups = await q("SELECT id FROM `groups` WHERE name = ? LIMIT 1", [groupName]);
+    if (!groups || groups.length === 0) {
+      return res.status(404).json({ error: "Group not found" });
+    }
+
+    // Delete all permissions for this group
+    await q("DELETE FROM group_permissions WHERE name = ?", [groupName]);
+
+    // Remove users from this group
+    await q("DELETE FROM user_groups WHERE group_id = ?", [groups[0].id]);
+
+    // Delete the group
+    await q("DELETE FROM `groups` WHERE id = ?", [groups[0].id]);
+
+    res.json({ success: true, message: "Group deleted" });
+  } catch (e) {
+    console.error("DELETE /api/admin/groups/:name error:", e);
+    res.status(500).json({ error: "DB error", details: String(e?.message ?? e) });
+  }
+});
+
+// --- Start ---
+(async () => {
+  try {
+    await ensureSchema();
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+      console.log(`CORS origin: ${WEB_ORIGIN}`);
+    });
+  } catch (err) {
+    console.error("Failed to start server:", err);
+    process.exit(1);
+  }
+})();
