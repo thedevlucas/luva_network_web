@@ -50,9 +50,8 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        // Conectamos las fuentes definidas en tu CSS
-        sans: ["var(--font-body)", "sans-serif"],    // Nunito Sans
-        pixel: ["var(--font-pixel)", "monospace"],   // VT323
+        sans: ["var(--font-body)", "sans-serif"],
+        pixel: ["var(--font-pixel)", "monospace"],
         display: ["var(--font-display)", "cursive"],
       },
     },

@@ -25,7 +25,7 @@ type SortField = "username" | "joinedAt" | "lastSeen" | "playtimeSeconds";
 type SortOrder = "asc" | "desc";
 
 export default function UsersPage() {
-  const searchParams = useSearchParams(); // Use useSearchParams here
+  const searchParams = useSearchParams();
   const [users, setUsers] = useState<ServerUser[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterGroup, setFilterGroup] = useState("all");
@@ -48,13 +48,11 @@ export default function UsersPage() {
     };
   }, []);
 
-  // Get unique groups from users
   const groups = useMemo(() => {
     const allGroups = users.flatMap((u) => u.groups);
     return ["all", ...Array.from(new Set(allGroups))];
   }, [users]);
 
-  // Filter and sort users
   const filteredUsers = useMemo(() => {
     let result = users.filter((user) => {
       const matchesSearch = user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -460,7 +458,6 @@ function UserDetailModal({ user, onClose, formatPlaytime, formatDateTime }: User
   );
 }
 
-// Export the Loading component to wrap the page in a Suspense boundary
 export function Loading() {
-  return null; // The Loading component should return null
+  return null;
 }

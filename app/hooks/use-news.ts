@@ -10,13 +10,12 @@ type ApiNewsPost = {
   content: string;
   coverImageUrl?: string;
   createdAt: string;
-  // opcionales si después los agregás en DB
   category?: string;
   author?: string;
 };
 
 export type Post = {
-  id: string;           // lo dejás string para no tocar tu UI
+  id: string;
   slug: string;
   coverImage: string;
   title: string;
@@ -69,7 +68,6 @@ export function useNews() {
         const raw = (await res.json()) as ApiNewsPost[];
         const normalized = raw.map(normalize);
 
-        // Orden newest -> oldest por publishedAt (por si API no ordena)
         normalized.sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1));
 
         if (alive) setData(normalized);

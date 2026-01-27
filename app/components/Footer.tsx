@@ -27,7 +27,6 @@ export function Footer() {
   const [loadSeconds, setLoadSeconds] = useState<number | null>(null);
 
   useEffect(() => {
-    // Intenta leer el timing real de navegación (más "exacto")
     const nav = performance.getEntriesByType("navigation")[0] as
       | PerformanceNavigationTiming
       | undefined;
@@ -37,7 +36,6 @@ export function Footer() {
       return;
     }
 
-    // Fallback (si el browser no expone navigation timing)
     setLoadSeconds(performance.now() / 1000);
   }, []);
 
@@ -49,7 +47,6 @@ export function Footer() {
   const siteName = settings?.siteName || "LuvaNetwork";
   const siteDescription = settings?.siteDescription || "Network hispanohablante de Hytale en construcción: minijuegos, sistemas propios y comunidad metiendo mano desde el día uno.";
 
-  // Build social links from settings
   const socialLinks = useMemo(() => {
     if (!settings) return [];
     

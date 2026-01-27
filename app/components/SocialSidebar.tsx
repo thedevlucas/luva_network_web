@@ -7,7 +7,6 @@ import { Youtube, Facebook, Instagram } from "lucide-react";
 import { useSettings } from "@/app/contexts/SettingsContext";
 import { useMemo } from "react";
 
-// Discord logo SVG
 function DiscordIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -16,7 +15,6 @@ function DiscordIcon({ className }: { className?: string }) {
   );
 }
 
-// X (Twitter) logo SVG
 function XIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -68,7 +66,6 @@ const socialLinksConfig: SocialLinkConfig[] = [
 export function SocialSidebar() {
   const { settings } = useSettings();
 
-  // Build social links dynamically from settings
   const socialLinks = useMemo(() => {
     if (!settings) return [];
     

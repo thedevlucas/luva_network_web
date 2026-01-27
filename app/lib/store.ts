@@ -1,6 +1,3 @@
-// Mock data store - simulates database with localStorage
-// In production, replace with actual database calls
-
 export interface GeneralSettings {
   siteName: string;
   siteDescription: string;
@@ -9,7 +6,6 @@ export interface GeneralSettings {
   serverIp: string;
   serverPort: number;
   
-  // Social links
   discordUrl: string;
   youtubeUrl: string;
   twitterUrl: string;
@@ -21,7 +17,7 @@ export interface GeneralSettings {
   serverMaintenanceMessage: string;
   webMaintenance: boolean;
   webMaintenanceMessage: string;
-  webMaintenanceEndDate: string | null; // ISO date string
+  webMaintenanceEndDate: string | null;
   webMaintenanceShowCountdown: boolean;
 }
 
@@ -30,7 +26,7 @@ export interface Rank {
   name: string;
   displayName: string;
   price: number;
-  color: string; // hex color
+  color: string;
   order: number;
   benefits: RankBenefit[];
   isPopular: boolean;
@@ -47,7 +43,7 @@ export interface NewsPost {
   slug: string;
   title: string;
   excerpt: string;
-  content: string; // Discord markdown format
+  content: string;
   coverImageUrl: string;
   category: string;
   author: string;
@@ -60,7 +56,7 @@ export interface NewsPost {
 export interface AdminUser {
   id: string;
   username: string;
-  passwordHash: string; // In real app, this would be hashed
+  passwordHash: string;
   role: 'admin' | 'moderator';
   lastLogin: string | null;
 }
@@ -76,7 +72,6 @@ export interface ServerUser {
   groups: string[];
 }
 
-// Default settings
 const defaultSettings: GeneralSettings = {
   siteName: 'LuvaNetwork',
   siteDescription: 'La mejor experiencia de Minecraft PvP en Latinoamerica',
@@ -99,12 +94,11 @@ const defaultSettings: GeneralSettings = {
   webMaintenanceShowCountdown: false,
 };
 
-// Default admin users (from the Hytale database users with admin group)
 const defaultAdminUsers: AdminUser[] = [
   {
     id: '1',
     username: 'rehen',
-    passwordHash: 'admin123', // In production, use bcrypt
+    passwordHash: 'admin123', 
     role: 'admin',
     lastLogin: null,
   },
@@ -117,7 +111,6 @@ const defaultAdminUsers: AdminUser[] = [
   },
 ];
 
-// Default ranks (from the store page)
 const defaultRanks: Rank[] = [
   {
     id: '1',
@@ -168,7 +161,6 @@ const defaultRanks: Rank[] = [
   },
 ];
 
-// Default server users (from the SQL dump)
 const defaultServerUsers: ServerUser[] = [
   {
     id: 2,
@@ -192,7 +184,6 @@ const defaultServerUsers: ServerUser[] = [
   },
 ];
 
-// Default news posts
 const defaultNewsPosts: NewsPost[] = [
   {
     id: '1',
@@ -228,7 +219,6 @@ IP: play.LuvaNetwork.net
   },
 ];
 
-// Storage keys
 const KEYS = {
   settings: 'luva_settings',
   ranks: 'luva_ranks',
@@ -238,7 +228,6 @@ const KEYS = {
   authSession: 'luva_auth_session',
 };
 
-// Helper to safely access localStorage
 function getStorage<T>(key: string, defaultValue: T): T {
   if (typeof window === 'undefined') return defaultValue;
   try {
@@ -258,7 +247,6 @@ function setStorage<T>(key: string, value: T): void {
   }
 }
 
-// Settings API
 export const settingsApi = {
   get: (): GeneralSettings => getStorage(KEYS.settings, defaultSettings),
   update: (settings: Partial<GeneralSettings>): GeneralSettings => {
@@ -273,7 +261,6 @@ export const settingsApi = {
   },
 };
 
-// Ranks API
 export const ranksApi = {
   getAll: (): Rank[] => {
     const ranks = getStorage(KEYS.ranks, defaultRanks);
@@ -319,7 +306,6 @@ export const ranksApi = {
   },
 };
 
-// News API
 export const newsApi = {
   getAll: (): NewsPost[] => {
     const news = getStorage(KEYS.news, defaultNewsPosts);
@@ -362,7 +348,6 @@ export const newsApi = {
   },
 };
 
-// Admin Users API
 export const adminUsersApi = {
   getAll: (): AdminUser[] => getStorage(KEYS.adminUsers, defaultAdminUsers),
   authenticate: (username: string, password: string): AdminUser | null => {
@@ -381,7 +366,6 @@ export const adminUsersApi = {
   },
 };
 
-// Server Users API
 export const serverUsersApi = {
   getAll: (): ServerUser[] => getStorage(KEYS.serverUsers, defaultServerUsers),
   get: (id: number): ServerUser | undefined => {
@@ -392,7 +376,6 @@ export const serverUsersApi = {
   },
 };
 
-// Auth Session API
 export interface AuthSession {
   userId: string;
   username: string;
@@ -427,7 +410,6 @@ export const authApi = {
   },
 };
 
-// Generate slug from title
 export function generateSlug(title: string): string {
   return title
     .toLowerCase()

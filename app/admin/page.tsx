@@ -43,7 +43,6 @@ export default function AdminDashboard() {
   });
   const [recentNews, setRecentNews] = useState<NewsPost[]>([]);
 
-  // Load stats (from API)
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -72,18 +71,14 @@ export default function AdminDashboard() {
     };
   }, []);
 
-  // Check server status
   const checkServerStatus = async () => {
     if (!settings?.serverIp) return;
     
     setIsCheckingServer(true);
     
     try {
-      // Simulate server ping - in production, use mcstatus API or similar
-      // For demo, we'll simulate with random data
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Check if server is in maintenance
       if (settings.serverMaintenance) {
         setServerStatus({
           online: false,
@@ -93,9 +88,8 @@ export default function AdminDashboard() {
           version: "Mantenimiento",
         });
       } else {
-        // Simulated response - in production, ping actual server
         setServerStatus({
-          online: Math.random() > 0.2, // 80% chance online
+          online: Math.random() > 0.2,
           players: Math.floor(Math.random() * 50) + 10,
           maxPlayers: 100,
           latency: Math.floor(Math.random() * 50) + 20,
@@ -117,7 +111,6 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     checkServerStatus();
-    // Check every 30 seconds
     const interval = setInterval(checkServerStatus, 30000);
     return () => clearInterval(interval);
   }, [settings?.serverIp, settings?.serverMaintenance]);

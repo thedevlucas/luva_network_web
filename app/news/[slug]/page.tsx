@@ -11,7 +11,6 @@ import { Navbar } from "@/app/components/Navbar";
 import { Footer } from "@/app/components/Footer";
 import { DiscordOverlay } from "@/app/components/DiscordOverlay";
 import { SocialSidebar } from "@/app/components/SocialSidebar";
-// IMPORTANTE: Importamos el componente DiscordMarkdown en lugar de solo la función
 import { DiscordMarkdown } from "@/app/lib/discord-markdown";
 
 import heroBg from "@/app/assets/bg_1768898406606.png";

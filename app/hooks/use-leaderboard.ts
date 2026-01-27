@@ -23,7 +23,6 @@ export function usePlayersCount() {
 
       const data = await res.json();
 
-      // ✅ tu server devuelve { total: number }
       if (data && typeof data.total === "number") return data.total;
 
       throw new Error("Unexpected players count response shape");
@@ -41,7 +40,6 @@ export function usePlayersCountHours() {
       const url = buildUrl("/api/players/hours_count", {});
       const res = await fetch(url, { credentials: "include" });
 
-      // Si está fallando por DB/columna, loguealo
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         throw new Error(`Failed hours_count (${res.status}): ${text}`);
@@ -49,7 +47,6 @@ export function usePlayersCountHours() {
 
       const data = await res.json();
 
-      // ✅ tu server devuelve totalHours y totalSeconds
       if (typeof data?.totalHours === "number") return data.totalHours;
       if (typeof data?.totalSeconds === "number") {
         return Math.round((data.totalSeconds / 3600) * 100) / 100;
@@ -58,7 +55,6 @@ export function usePlayersCountHours() {
       throw new Error("Unexpected hours_count response shape");
     },
 
-    // Para que NO intente 3 veces cuando falla:
     retry: 0,
 
     staleTime: 5 * 60_000,

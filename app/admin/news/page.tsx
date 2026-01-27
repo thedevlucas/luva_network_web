@@ -315,7 +315,6 @@ function NewsEditor({ post, isNew, onSave, onCancel }: NewsEditorProps) {
   const handleChange = (field: keyof NewsPost, value: any) => {
     setFormData({ ...formData, [field]: value });
 
-    // Auto-generate slug from title
     if (field === "title") {
       setFormData((prev) => ({
         ...prev,
@@ -338,7 +337,6 @@ function NewsEditor({ post, isNew, onSave, onCancel }: NewsEditorProps) {
 
     setFormData({ ...formData, content: newText });
 
-    // Restore cursor position
     setTimeout(() => {
       if (textareaRef) {
         textareaRef.focus();

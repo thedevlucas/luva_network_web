@@ -1,6 +1,3 @@
-// Discord Markdown Parser
-// Converts Discord-style markdown to React components
-
 import React from "react";
 
 interface ParsedNode {
@@ -10,13 +7,11 @@ interface ParsedNode {
   url?: string;
 }
 
-// Parse Discord markdown text into an AST
 export function parseDiscordMarkdown(text: string): ParsedNode[] {
   const nodes: ParsedNode[] = [];
   let remaining = text;
 
   while (remaining.length > 0) {
-    // Code blocks (```language\ncode```)
     const codeBlockMatch = remaining.match(/^```(\w*)\n?([\s\S]*?)```/);
     if (codeBlockMatch) {
       nodes.push({
@@ -28,7 +23,6 @@ export function parseDiscordMarkdown(text: string): ParsedNode[] {
       continue;
     }
 
-    // Inline code (`code`)
     const inlineCodeMatch = remaining.match(/^`([^`]+)`/);
     if (inlineCodeMatch) {
       nodes.push({ type: "inlineCode", content: inlineCodeMatch[1] });
@@ -36,7 +30,6 @@ export function parseDiscordMarkdown(text: string): ParsedNode[] {
       continue;
     }
 
-    // Headings (# ## ###)
     const headingMatch = remaining.match(/^(#{1,3})\s+(.+?)(?:\n|$)/);
     if (headingMatch) {
       const level = headingMatch[1].length;
@@ -48,7 +41,6 @@ export function parseDiscordMarkdown(text: string): ParsedNode[] {
       continue;
     }
 
-    // Blockquote (> text)
     const blockquoteMatch = remaining.match(/^(?:>\s*(.+?)(?:\n|$))+/);
     if (blockquoteMatch) {
       const lines = blockquoteMatch[0]
@@ -63,7 +55,6 @@ export function parseDiscordMarkdown(text: string): ParsedNode[] {
       continue;
     }
 
-    // Unordered list (- item or * item)
     const listMatch = remaining.match(/^(?:[-*]\s+.+(?:\n|$))+/);
     if (listMatch) {
       const items = listMatch[0]
@@ -81,7 +72,6 @@ export function parseDiscordMarkdown(text: string): ParsedNode[] {
       continue;
     }
 
-    // Links [text](url)
     const linkMatch = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/);
     if (linkMatch) {
       nodes.push({
@@ -93,7 +83,6 @@ export function parseDiscordMarkdown(text: string): ParsedNode[] {
       continue;
     }
 
-    // Newlines
     if (remaining.startsWith("\n\n")) {
       nodes.push({ type: "break", content: "" });
       remaining = remaining.slice(2);
@@ -105,7 +94,6 @@ export function parseDiscordMarkdown(text: string): ParsedNode[] {
       continue;
     }
 
-    // Regular text until special character
     const textMatch = remaining.match(/^[^`#>\[\n*_~|\\-]+/);
     if (textMatch) {
       const inlineNodes = parseInline(textMatch[0]);
@@ -114,7 +102,6 @@ export function parseDiscordMarkdown(text: string): ParsedNode[] {
       continue;
     }
 
-    // Inline formatting
     const inlineMatch = remaining.match(/^[\*_~|\\]+[^*_~|\\]+[\*_~|\\]+/);
     if (inlineMatch) {
       const inlineNodes = parseInline(inlineMatch[0]);
@@ -123,7 +110,6 @@ export function parseDiscordMarkdown(text: string): ParsedNode[] {
       continue;
     }
 
-    // If nothing matches, take one character
     nodes.push({ type: "text", content: remaining[0] });
     remaining = remaining.slice(1);
   }
@@ -131,13 +117,11 @@ export function parseDiscordMarkdown(text: string): ParsedNode[] {
   return nodes;
 }
 
-// Parse inline formatting
 function parseInline(text: string): ParsedNode[] {
   const nodes: ParsedNode[] = [];
   let remaining = text;
 
   while (remaining.length > 0) {
-    // Bold (**text** or __text__)
     const boldMatch = remaining.match(/^(\*\*|__)(.+?)\1/);
     if (boldMatch) {
       nodes.push({
@@ -148,7 +132,7 @@ function parseInline(text: string): ParsedNode[] {
       continue;
     }
 
-    // Italic (*text* or _text_)
+
     const italicMatch = remaining.match(/^(\*|_)([^*_]+)\1/);
     if (italicMatch) {
       nodes.push({
@@ -159,7 +143,6 @@ function parseInline(text: string): ParsedNode[] {
       continue;
     }
 
-    // Underline (__text__) - Discord specific
     const underlineMatch = remaining.match(/^__(.+?)__/);
     if (underlineMatch) {
       nodes.push({
@@ -170,7 +153,6 @@ function parseInline(text: string): ParsedNode[] {
       continue;
     }
 
-    // Strikethrough (~~text~~)
     const strikeMatch = remaining.match(/^~~(.+?)~~/);
     if (strikeMatch) {
       nodes.push({
@@ -181,7 +163,6 @@ function parseInline(text: string): ParsedNode[] {
       continue;
     }
 
-    // Spoiler (||text||)
     const spoilerMatch = remaining.match(/^\|\|(.+?)\|\|/);
     if (spoilerMatch) {
       nodes.push({
@@ -192,7 +173,6 @@ function parseInline(text: string): ParsedNode[] {
       continue;
     }
 
-    // Inline code
     const inlineCodeMatch = remaining.match(/^`([^`]+)`/);
     if (inlineCodeMatch) {
       nodes.push({ type: "inlineCode", content: inlineCodeMatch[1] });
@@ -200,7 +180,6 @@ function parseInline(text: string): ParsedNode[] {
       continue;
     }
 
-    // Link [text](url)
     const linkMatch = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/);
     if (linkMatch) {
       nodes.push({
@@ -212,7 +191,6 @@ function parseInline(text: string): ParsedNode[] {
       continue;
     }
 
-    // Auto-detect URLs (http:// or https://)
     const urlMatch = remaining.match(/^(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/);
     if (urlMatch) {
       nodes.push({
@@ -224,7 +202,6 @@ function parseInline(text: string): ParsedNode[] {
       continue;
     }
 
-    // Plain text
     const textMatch = remaining.match(/^[^*_~|`\[\]\\https]+/);
     if (textMatch) {
       nodes.push({ type: "text", content: textMatch[0] });
@@ -232,7 +209,6 @@ function parseInline(text: string): ParsedNode[] {
       continue;
     }
 
-    // Single character
     nodes.push({ type: "text", content: remaining[0] });
     remaining = remaining.slice(1);
   }
@@ -240,7 +216,6 @@ function parseInline(text: string): ParsedNode[] {
   return nodes;
 }
 
-// Render parsed nodes to React elements
 function renderNode(node: ParsedNode, index: number): React.ReactNode {
   const renderChildren = (content: string | ParsedNode[]) => {
     if (typeof content === "string") return content;
@@ -366,7 +341,6 @@ function renderNode(node: ParsedNode, index: number): React.ReactNode {
   }
 }
 
-// Main component to render Discord markdown
 export function DiscordMarkdown({ content }: { content: string }) {
   const nodes = parseDiscordMarkdown(content);
 
@@ -377,7 +351,6 @@ export function DiscordMarkdown({ content }: { content: string }) {
   );
 }
 
-// Editor toolbar buttons config
 export const markdownButtons = [
   { label: "H1", prefix: "# ", suffix: "", tooltip: "Titulo 1" },
   { label: "H2", prefix: "## ", suffix: "", tooltip: "Titulo 2" },

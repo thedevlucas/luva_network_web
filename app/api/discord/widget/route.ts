@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const GUILD_ID = 1093811354147762206; // no NEXT_PUBLIC
+const GUILD_ID = 1093811354147762206;
 
 export async function GET() {
   if (!GUILD_ID) {
@@ -13,7 +13,6 @@ export async function GET() {
   const url = `https://discord.com/api/guilds/1093811354147762206/widget.json`;
 
   const res = await fetch(url, {
-    // cache control del lado server (evita rate-limit y estabiliza el UI)
     next: { revalidate: 15 },
   });
 

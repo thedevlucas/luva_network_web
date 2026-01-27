@@ -4,7 +4,6 @@ type Props = {
   params: Promise<{ slug: string }>;
 };
 
-// Función para obtener los datos de la noticia (server-side)
 async function getNewsData(slug: string) {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8080";
@@ -25,7 +24,6 @@ async function getNewsData(slug: string) {
   }
 }
 
-// Generar metadata dinámico para cada noticia
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const news = await getNewsData(slug);

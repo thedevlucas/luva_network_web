@@ -289,7 +289,6 @@ export function MaintenanceGuard({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<GeneralSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Allow admin to access the panel even while the website is in maintenance mode
   const isAdminRoute = pathname?.startsWith("/admin");
 
   useEffect(() => {
@@ -300,7 +299,6 @@ export function MaintenanceGuard({ children }: { children: React.ReactNode }) {
         const s = await settingsApi.get();
         if (mounted) setSettings(s);
       } catch {
-        // If settings fetch fails, don't block the site
         if (mounted) setSettings(null);
       } finally {
         if (mounted) setIsLoading(false);

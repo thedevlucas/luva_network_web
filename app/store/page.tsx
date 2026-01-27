@@ -16,7 +16,6 @@ const ACCENT = {
   hover: "#A878E6",
 };
 
-// Design configs for each rank position (0=VIP style, 1=MVP style, 2=ELITE style)
 const rankDesigns = [
   {
     color: "text-emerald-400",
@@ -68,7 +67,6 @@ export default function Store() {
   const heroY = useTransform(scrollYProgress, [0, 1], [0, 200]);
   const heroOpacity = useTransform(scrollYProgress, [0, 0.3], [1, 0]);
 
-  // Fetch ranks from backend
   const [ranks, setRanks] = useState<DisplayRank[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -92,7 +90,6 @@ export default function Store() {
 
         const data: Rank[] = await res.json();
 
-        // Map backend ranks to display ranks with fixed designs
         const displayRanks: DisplayRank[] = data.map((rank, index) => {
           const designIndex = Math.min(index, rankDesigns.length - 1);
           const design = rankDesigns[designIndex];
@@ -114,7 +111,6 @@ export default function Store() {
         if (alive) setRanks(displayRanks);
       } catch (error) {
         console.error("Error fetching ranks:", error);
-        // Use fallback data if backend fails
         if (alive) {
           setRanks([
             {

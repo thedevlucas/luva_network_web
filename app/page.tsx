@@ -14,7 +14,6 @@ import { SocialSidebar } from '@/app/components/SocialSidebar';
 import { useState } from 'react';
 import heroBg from "@/app/assets/bg_1768898406606.png";
 
-// Game mode background images - using the same hero background as fallback
 import skywars from "@/public/assets/bg-adventure--2.jpg";
 import survival from "@/public/assets/bg-adventure--1.jpg";
 import duels from "@/public/assets/bg-adventure--3.jpg";
@@ -45,7 +44,6 @@ export default function Page() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      // Fallback for older browsers
       const textArea = document.createElement("textarea");
       textArea.value = serverIp;
       document.body.appendChild(textArea);
@@ -324,7 +322,7 @@ type GameModeCardProps = {
   color: string;
   accent: string;
   delay?: number;
-  bgImage?: string; // ✅ nuevo
+  bgImage?: string;
 };
 
 export function GameModeCard({

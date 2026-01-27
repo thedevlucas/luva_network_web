@@ -7,7 +7,6 @@ const jwt = require("jsonwebtoken");
 
 const app = express();
 
-// --- Config ---
 const PORT = process.env.PORT || 8080;
 const WEB_ORIGIN = process.env.WEB_ORIGIN || "http://127.0.0.1:3000";
 const JWT_SECRET = process.env.JWT_SECRET || "change-me-in-.env";
@@ -26,7 +25,6 @@ const DB_CONFIG = {
 
 const pool = mysql.createPool(DB_CONFIG);
 
-// --- Middleware ---
 app.use(express.json());
 app.use(
   cors({
@@ -44,8 +42,6 @@ process.on("unhandledRejection", (reason) => {
   console.error("[unhandledRejection]", reason);
 });
 
-
-// --- Helpers ---
 async function q(sql, params = []) {
   const [rows] = await pool.query(sql, params);
   return rows;
@@ -80,7 +76,6 @@ function requireAdmin(req, res, next) {
   return next();
 }
 
-// --- Schema / Migrations ---
 const defaultSettings = {
   siteName: "LuvaNetwork",
   siteDescription: "La mejor experiencia de Minecraft PvP en Latinoamerica",
@@ -104,7 +99,6 @@ const defaultSettings = {
 };
 
 async function ensureSchema() {
-  // admin passwords table (bound to existing `users` table)
   await q(`
     CREATE TABLE IF NOT EXISTS admin_users (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -119,7 +113,6 @@ async function ensureSchema() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
 
-  // Settings table (single row id=1)
   await q(`
     CREATE TABLE IF NOT EXISTS web_settings (
       id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
@@ -148,7 +141,6 @@ async function ensureSchema() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
 
-  // Ranks store
   await q(`
     CREATE TABLE IF NOT EXISTS ranks (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -178,7 +170,6 @@ async function ensureSchema() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
 
-  // News posts
   await q(`
     CREATE TABLE IF NOT EXISTS news_posts (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -199,7 +190,6 @@ async function ensureSchema() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
 
-  // Seed settings row if missing
   const existing = await q("SELECT id FROM web_settings WHERE id = 1 LIMIT 1");
   if (!existing || existing.length === 0) {
     await q(
@@ -298,7 +288,6 @@ const fakeStats = [
   { playerId: 5, gameMode: "duels", kills: 620, wins: 300, playtime: 1900 },
 ];
 
-// --- leaderboard (FAKE) ---
 app.get("/api/leaderboard/:gameMode/:metric", (req, res) => {
   const { gameMode, metric } = req.params;
 
@@ -326,7 +315,6 @@ app.get("/api/leaderboard/:gameMode/:metric", (req, res) => {
   res.json(rows);
 });
 
-// --- player profile (FAKE) ---
 app.get("/api/players/get/:username", (req, res) => {
   const username = req.params.username;
 
@@ -338,7 +326,6 @@ app.get("/api/players/get/:username", (req, res) => {
   res.json({ ...player, stats });
 });
 
-// --- Auth ---
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { username, password } = req.body || {};
@@ -346,7 +333,6 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(400).json({ error: "Missing username/password" });
     }
 
-    // Must exist in users table
     const users = await q(
       "SELECT id, username FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1",
       [username]
@@ -356,7 +342,6 @@ app.post("/api/auth/login", async (req, res) => {
     }
     const user = users[0];
 
-    // Must be in group 'admin'
     const adminGroup = await q(
       `SELECT 1 AS ok
        FROM user_groups ug
@@ -369,7 +354,6 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(403).json({ error: "Admin only" });
     }
 
-    // Must have a password hash configured in admin_users
     const adminUsers = await q(
       "SELECT password_hash FROM admin_users WHERE user_id = ? LIMIT 1",
       [user.id]
@@ -398,7 +382,6 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-// --- Settings ---
 app.get("/api/settings/general", async (req, res) => {
   try {
     const rows = await q("SELECT * FROM web_settings WHERE id = 1 LIMIT 1");
@@ -417,7 +400,7 @@ app.get("/api/settings/general", async (req, res) => {
 app.put("/api/settings/general", requireAuth, requireAdmin, async (req, res) => {
   try {
     const payload = req.body || {};
-    // Only allow known fields
+
     const allowed = {
       siteName: "site_name",
       siteDescription: "site_description",
@@ -471,7 +454,6 @@ app.put("/api/settings/general", requireAuth, requireAdmin, async (req, res) => 
   }
 });
 
-// --- Ranks ---
 async function fetchRanks() {
   const ranks = await q("SELECT * FROM ranks ORDER BY sort_order ASC, id ASC");
   if (!ranks || ranks.length === 0) return [];
@@ -643,7 +625,6 @@ app.delete("/api/admin/ranks/:id", requireAuth, requireAdmin, async (req, res) =
   }
 });
 
-// --- News ---
 function mapNewsRow(row) {
   return {
     id: String(row.id),
@@ -751,7 +732,6 @@ app.post("/api/admin/news", requireAuth, requireAdmin, async (req, res) => {
     return res.json(mapNewsRow(rows[0]));
   } catch (err) {
     console.error(err);
-    // duplicate slug
     if (String(err && err.code) === "ER_DUP_ENTRY") {
       return res.status(409).json({ error: "Slug already exists" });
     }
@@ -787,7 +767,6 @@ app.put("/api/admin/news/:id", requireAuth, requireAdmin, async (req, res) => {
       if (k === "isPublished") {
         sets.push(`${col} = ?`);
         vals.push(b[k] ? 1 : 0);
-        // If toggling to published and no publishedAt, set NOW()
         if (b[k] && typeof b.publishedAt === "undefined") {
           sets.push(`published_at = COALESCE(published_at, NOW())`);
         }
@@ -830,7 +809,6 @@ app.delete("/api/admin/news/:id", requireAuth, requireAdmin, async (req, res) =>
   }
 });
 
-// --- Admin stats / users ---
 app.get("/api/admin/stats", requireAuth, requireAdmin, async (req, res) => {
   try {
     const [totalUsersRow] = await q("SELECT COUNT(*) AS c FROM users");
@@ -896,7 +874,6 @@ app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-// Existing public endpoints: players online + player stats
 app.get("/api/players/online", async (req, res) => {
   try {
     const windowSeconds = Number(process.env.ONLINE_WINDOW_SECONDS || 90);
@@ -955,7 +932,6 @@ app.get("/api/players/get/:uuid", async (req, res) => {
   }
 });
 
-// Online "estimado": last_seen dentro de los últimos N segundos
 app.get("/api/players/online_count", async (_req, res) => {
   const windowSeconds = Number(process.env.ONLINE_WINDOW_SECONDS ?? 90);
 
@@ -986,7 +962,6 @@ app.get("/api/players/count", async (_req, res) => {
 
 app.get("/api/players/hours_count", async (_req, res) => {
   try {
-    // Si no existe la columna, esto va a fallar: ahí me pasás db.sql y lo adapto.
     const [rows] = await pool.query(
       `
       SELECT COALESCE(SUM(playtime_seconds), 0) AS totalSeconds
@@ -1002,7 +977,6 @@ app.get("/api/players/hours_count", async (_req, res) => {
       totalHours: Math.round(totalHours * 100) / 100,
     });
   } catch (e) {
-    // fallback “amigable”
     res.status(500).json({
       message: "DB error (probablemente falta users.playtime_seconds). Subime tu db.sql y lo adapto.",
       error: String(e?.message ?? e),
@@ -1010,11 +984,6 @@ app.get("/api/players/hours_count", async (_req, res) => {
   }
 });
 
-// =====================
-// GROUPS MANAGEMENT
-// =====================
-
-// GET /api/admin/groups - List all groups with permission count
 app.get("/api/admin/groups", requireAuth, requireAdmin, async (req, res) => {
   try {
     const groups = await q(`
@@ -1049,9 +1018,6 @@ app.get("/api/admin/groups", requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-
-
-// GET /api/admin/groups/:name - Get single group with all permissions
 app.get("/api/admin/groups/:name", requireAuth, requireAdmin, async (req, res) => {
   try {
     const groupName = String(req.params.name || "");
@@ -1075,7 +1041,6 @@ app.get("/api/admin/groups/:name", requireAuth, requireAdmin, async (req, res) =
     const g = rows?.[0];
     if (!g) return res.status(404).json({ error: "Group not found" });
 
-    // Si además devolvés permisos, acá podés consultarlos por group_id
     const perms = await q(
       `
       SELECT permission, value, server, world
@@ -1106,8 +1071,6 @@ app.get("/api/admin/groups/:name", requireAuth, requireAdmin, async (req, res) =
   }
 });
 
-
-// POST /api/admin/groups/:name/permissions - Add permission to group
 app.post("/api/admin/groups/:name/permissions", requireAuth, requireAdmin, async (req, res) => {
   try {
     const groupName = req.params.name;
@@ -1117,13 +1080,11 @@ app.post("/api/admin/groups/:name/permissions", requireAuth, requireAdmin, async
       return res.status(400).json({ error: "Permission is required" });
     }
 
-    // Check group exists
     const groups = await q("SELECT id FROM `groups` WHERE name = ? LIMIT 1", [groupName]);
     if (!groups || groups.length === 0) {
       return res.status(404).json({ error: "Group not found" });
     }
 
-    // Check if permission already exists
     const existing = await q(
       "SELECT id FROM group_permissions WHERE name = ? AND permission = ? LIMIT 1",
       [groupName, permission]
@@ -1133,7 +1094,6 @@ app.post("/api/admin/groups/:name/permissions", requireAuth, requireAdmin, async
       return res.status(400).json({ error: "Permission already exists for this group" });
     }
 
-    // Insert permission
     await q(
       `INSERT INTO group_permissions (name, permission, value, server, world, expiry, contexts)
        VALUES (?, ?, ?, ?, ?, 0, '{}')`,
@@ -1147,12 +1107,10 @@ app.post("/api/admin/groups/:name/permissions", requireAuth, requireAdmin, async
   }
 });
 
-// DELETE /api/admin/groups/:name/permissions/:permissionId - Remove permission from group
 app.delete("/api/admin/groups/:name/permissions/:permissionId", requireAuth, requireAdmin, async (req, res) => {
   try {
     const { name: groupName, permissionId } = req.params;
 
-    // Verify permission belongs to group
     const perms = await q(
       "SELECT id FROM group_permissions WHERE id = ? AND name = ? LIMIT 1",
       [permissionId, groupName]
@@ -1171,7 +1129,6 @@ app.delete("/api/admin/groups/:name/permissions/:permissionId", requireAuth, req
   }
 });
 
-// PATCH /api/admin/groups/:name/permissions/:permissionId - Update permission value
 app.patch("/api/admin/groups/:name/permissions/:permissionId", requireAuth, requireAdmin, async (req, res) => {
   try {
     const { name: groupName, permissionId } = req.params;
@@ -1181,7 +1138,6 @@ app.patch("/api/admin/groups/:name/permissions/:permissionId", requireAuth, requ
       return res.status(400).json({ error: "Value is required" });
     }
 
-    // Verify permission belongs to group
     const perms = await q(
       "SELECT id FROM group_permissions WHERE id = ? AND name = ? LIMIT 1",
       [permissionId, groupName]
@@ -1200,7 +1156,6 @@ app.patch("/api/admin/groups/:name/permissions/:permissionId", requireAuth, requ
   }
 });
 
-// POST /api/admin/groups - Create new group
 app.post("/api/admin/groups", requireAuth, requireAdmin, async (req, res) => {
   try {
     const { name, type = "group" } = req.body || {};
@@ -1209,7 +1164,6 @@ app.post("/api/admin/groups", requireAuth, requireAdmin, async (req, res) => {
       return res.status(400).json({ error: "Group name is required" });
     }
 
-    // Check if group already exists
     const existing = await q("SELECT id FROM `groups` WHERE name = ? LIMIT 1", [name]);
     if (existing && existing.length > 0) {
       return res.status(400).json({ error: "Group already exists" });
@@ -1224,29 +1178,23 @@ app.post("/api/admin/groups", requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-// DELETE /api/admin/groups/:name - Delete group
 app.delete("/api/admin/groups/:name", requireAuth, requireAdmin, async (req, res) => {
   try {
     const groupName = req.params.name;
 
-    // Prevent deleting default group
     if (groupName === "default") {
       return res.status(400).json({ error: "Cannot delete default group" });
     }
 
-    // Check group exists
     const groups = await q("SELECT id FROM `groups` WHERE name = ? LIMIT 1", [groupName]);
     if (!groups || groups.length === 0) {
       return res.status(404).json({ error: "Group not found" });
     }
 
-    // Delete all permissions for this group
     await q("DELETE FROM group_permissions WHERE name = ?", [groupName]);
 
-    // Remove users from this group
     await q("DELETE FROM user_groups WHERE group_id = ?", [groups[0].id]);
 
-    // Delete the group
     await q("DELETE FROM `groups` WHERE id = ?", [groups[0].id]);
 
     res.json({ success: true, message: "Group deleted" });
@@ -1256,7 +1204,6 @@ app.delete("/api/admin/groups/:name", requireAuth, requireAdmin, async (req, res
   }
 });
 
-// --- Start ---
 (async () => {
   try {
     await ensureSchema();

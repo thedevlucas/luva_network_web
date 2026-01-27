@@ -73,7 +73,6 @@ export default function ConfigPage() {
     setIsSaving(true);
     try {
       await refreshSettings();
-      // SettingsProvider will update `settings`, and the effect above will refresh formData.
       setSaved(false);
     } finally {
       setIsSaving(false);

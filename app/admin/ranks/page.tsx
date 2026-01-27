@@ -43,7 +43,6 @@ export default function RanksPage() {
 
   const saveOrder = async () => {
     try {
-      // Persist the new order by updating each rank with its new `order`.
       await Promise.all(
         ranks.map((r, idx) => ranksApi.update(r.id, { order: idx }))
       );

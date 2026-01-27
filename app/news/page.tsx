@@ -31,13 +31,11 @@ export default function News() {
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get("category") || "all");
   const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
 
-  // Si tu API empieza a traer categories reales, esto se adapta solo:
   const categories = useMemo(() => {
     if (!news || news.length === 0) return defaultCategories;
     const unique = Array.from(new Set(news.map((n) => n.category).filter(Boolean)));
     if (unique.length === 0) return defaultCategories;
-
-    // mantenemos "all" + las que existan en data
+    
     return [{ id: "all", label: "Todas" }].concat(
       unique.map((c) => ({ id: c, label: c }))
     );

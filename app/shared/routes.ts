@@ -71,7 +71,6 @@ export const api = {
     },
   },
 
-  // ✅ NUEVO: Discord widget (lo sirve Next => mismo origin, ideal dejarlo relativo)
   discord: {
     widget: {
       method: "GET" as const,
@@ -105,14 +104,9 @@ export function buildUrl(
     }
   }
 
-  // ya es absoluta
   if (/^https?:\/\//i.test(url)) return url;
-
-  // ⚠️ Si es una ruta "interna" de Next (mismo origin), NO le pegues al backend 8080
-  // (por ejemplo /api/discord/widget)
   if (url.startsWith("/api/discord/")) return url;
 
-  // resto de rutas: van al backend (8080)
   const base = API_BASE_URL.replace(/\/+$/, "");
   const rel = url.startsWith("/") ? url : `/${url}`;
   return `${base}${rel}`;

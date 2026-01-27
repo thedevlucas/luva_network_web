@@ -15,7 +15,6 @@ export function Navbar() {
   const pathname = usePathname();
 
   useEffect(() => {
-    // Obtener estado de mantenimiento del servidor
     const fetchServerStatus = async () => {
       try {
         const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8080";
@@ -35,10 +34,8 @@ export function Navbar() {
 
     fetchServerStatus();
     
-    // Actualizar estado cada 30 segundos
     const statusInterval = setInterval(fetchServerStatus, 30000);
 
-    // Simular cambios en jugadores online (solo si no está en mantenimiento)
     const playersInterval = setInterval(() => {
       if (!serverMaintenance) {
         setPlayersOnline(prev => prev + Math.floor(Math.random() * 20) - 10);
