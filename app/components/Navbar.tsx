@@ -118,7 +118,7 @@ export function Navbar() {
             <Button 
               size="sm" 
               className="bg-[#FFC107] hover:bg-[#ffcd38] text-black font-black text-sm uppercase tracking-widest px-6 py-2 rounded-lg border-b-[4px] border-[#b38600] active:border-b-0 active:translate-y-[4px] transition-all shadow-lg hover:shadow-[#FFC107]/20 cursor-pointer"
-              onClick={() => {}}
+              onClick={() => {window.open("https://discord.gg/dR7J8MEE8B", "_blank")}}
             >
               Jugar Ahora
             </Button>
@@ -177,7 +177,9 @@ export function Navbar() {
             </div>
 
             <div className="mt-4 px-4">
-              <Button className="w-full bg-[#FFC107] text-black font-display font-black uppercase py-3 rounded-lg border-b-4 border-[#b38600] cursor-pointer">
+              <Button className="w-full bg-[#FFC107] text-black font-display font-black uppercase py-3 rounded-lg border-b-4 border-[#b38600] cursor-pointer"
+                onClick={() => {window.open("https://discord.gg/dR7J8MEE8B", "_blank")}}
+                >
                 Jugar Ahora
               </Button>
             </div>
