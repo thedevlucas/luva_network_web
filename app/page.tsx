@@ -102,12 +102,15 @@ export default function Page() {
             transition={{ delay: 0.5, duration: 0.5 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-6"
           >
+            <Link href="/discord" className="w-full sm:w-auto min-w-[220px]">
             <motion.button 
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className="w-full sm:w-auto min-w-[220px] bg-[#8447C8] hover:bg-[#965CD9] text-white font-display font-black text-xl uppercase py-4 px-8 rounded-xl border-b-[6px] border-b-[#6200b480] active:border-b-0 active:translate-y-[6px] transition-all duration-150 drop-shadow-sm cursor-pointer">
               Unirse al Servidor
             </motion.button>
+            </Link>
+            
 
             <Link href="/leaderboard" className="w-full sm:w-auto min-w-[220px]">
                <motion.button 

@@ -9,7 +9,7 @@ const app = express();
 
 // --- Config ---
 const PORT = process.env.PORT || 8080;
-const WEB_ORIGIN = process.env.WEB_ORIGIN || "http://localhost:3000";
+const WEB_ORIGIN = process.env.WEB_ORIGIN || "http://127.0.0.1:3000";
 const JWT_SECRET = process.env.JWT_SECRET || "change-me-in-.env";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 
@@ -271,11 +271,11 @@ const VALID_MODES = ["skywars", "survival", "duels"];
 const VALID_METRICS = ["kills", "wins", "playtime"];
 
 const fakePlayers = [
-  { id: 1, username: "NicoPvP", avatarUrl: "https://api.dicebear.com/9.x/bottts/png?seed=NicoPvP", rank: "MVP" },
-  { id: 2, username: "LunaGG", avatarUrl: "https://api.dicebear.com/9.x/bottts/png?seed=LunaGG", rank: "VIP" },
-  { id: 3, username: "RataDeLobby", avatarUrl: "https://api.dicebear.com/9.x/bottts/png?seed=RataDeLobby", rank: "ELITE" },
-  { id: 4, username: "Tryhardcito", avatarUrl: "https://api.dicebear.com/9.x/bottts/png?seed=Tryhardcito", rank: "MVP+" },
-  { id: 5, username: "MatiDuels", avatarUrl: "https://api.dicebear.com/9.x/bottts/png?seed=MatiDuels", rank: "DEFAULT" },
+  { id: 1, username: "Rehen", avatarUrl: "https://api.dicebear.com/9.x/bottts/png?seed=NicoPvP", rank: "Owner" }
+  // { id: 2, username: "LunaGG", avatarUrl: "https://api.dicebear.com/9.x/bottts/png?seed=LunaGG", rank: "VIP" },
+  // { id: 3, username: "RataDeLobby", avatarUrl: "https://api.dicebear.com/9.x/bottts/png?seed=RataDeLobby", rank: "ELITE" },
+  // { id: 4, username: "Tryhardcito", avatarUrl: "https://api.dicebear.com/9.x/bottts/png?seed=Tryhardcito", rank: "MVP+" },
+  // { id: 5, username: "MatiDuels", avatarUrl: "https://api.dicebear.com/9.x/bottts/png?seed=MatiDuels", rank: "DEFAULT" },
 ];
 
 const fakeStats = [
@@ -580,7 +580,11 @@ app.put("/api/admin/ranks/:id", requireAuth, requireAdmin, async (req, res) => {
     const b = req.body || {};
 
     const rows = await q("SELECT id FROM ranks WHERE id = ? LIMIT 1", [id]);
-    if (!rows || rows.length === 0) return res.status(404).json({ error: "Not found" });
+    if (!rows?.length) {
+      return res.status(404).json({ error: "Not found" });
+    }
+
+
 
     const sets = [];
     const vals = [];
@@ -1257,7 +1261,7 @@ app.delete("/api/admin/groups/:name", requireAuth, requireAdmin, async (req, res
   try {
     await ensureSchema();
     app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
+      console.log(`Server running on http://127.0.0.1:${PORT}`);
       console.log(`CORS origin: ${WEB_ORIGIN}`);
     });
   } catch (err) {

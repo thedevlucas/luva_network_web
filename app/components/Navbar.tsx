@@ -4,22 +4,52 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
-import { Menu, X, Globe, ShoppingCart, Newspaper, Trophy } from "lucide-react";
+import { Menu, X, Globe, ShoppingCart, Newspaper, Trophy, Wrench } from "lucide-react";
 import logoImg from "@/app/assets/logoluva_1768898408478.png";
 import { Button } from "./Button";
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [playersOnline, setPlayersOnline] = useState(1247);
+  const [serverMaintenance, setServerMaintenance] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
-    // Simular cambios en jugadores online
-    const interval = setInterval(() => {
-      setPlayersOnline(prev => prev + Math.floor(Math.random() * 20) - 10);
+    // Obtener estado de mantenimiento del servidor
+    const fetchServerStatus = async () => {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8080";
+        const res = await fetch(`${baseUrl}/api/settings/general`, {
+          method: "GET",
+          cache: "no-store",
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          setServerMaintenance(data.serverMaintenance || false);
+        }
+      } catch (error) {
+        console.error("Error fetching server status:", error);
+      }
+    };
+
+    fetchServerStatus();
+    
+    // Actualizar estado cada 30 segundos
+    const statusInterval = setInterval(fetchServerStatus, 30000);
+
+    // Simular cambios en jugadores online (solo si no está en mantenimiento)
+    const playersInterval = setInterval(() => {
+      if (!serverMaintenance) {
+        setPlayersOnline(prev => prev + Math.floor(Math.random() * 20) - 10);
+      }
     }, 8000);
-    return () => clearInterval(interval);
-  }, []);
+
+    return () => {
+      clearInterval(statusInterval);
+      clearInterval(playersInterval);
+    };
+  }, [serverMaintenance]);
 
   const links = [
     { href: "/", label: "Inicio", icon: Globe },
@@ -67,14 +97,25 @@ export function Navbar() {
 
           {/* Right Section: Status & Button */}
           <div className="hidden md:flex items-center gap-6 ml-auto">
-            {/* Online Counter */}
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-black/40 rounded-full border border-white/10">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
-              </span>
-              <span className="text-xs font-mono font-bold text-gray-300">{playersOnline.toLocaleString()} En Linea</span>
-            </div>
+            {/* Online Counter / Maintenance Status */}
+            {serverMaintenance ? (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/10 rounded-full border border-orange-500/30">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500"></span>
+                </span>
+                <Wrench className="w-3.5 h-3.5 text-orange-400" />
+                <span className="text-xs font-mono font-bold text-orange-300">MANTENIMIENTO</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-black/40 rounded-full border border-white/10">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                </span>
+                <span className="text-xs font-mono font-bold text-gray-300">{playersOnline.toLocaleString()} En Linea</span>
+              </div>
+            )}
 
             {/* Play Now Button */}
             <Button 
@@ -115,7 +156,30 @@ export function Navbar() {
                 </div>
               </Link>
             ))}
-             <div className="mt-4 px-4">
+            
+            {/* Mobile Status */}
+            <div className="px-4 py-3">
+              {serverMaintenance ? (
+                <div className="flex items-center gap-2 px-3 py-2 bg-orange-500/10 rounded-lg border border-orange-500/30">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500"></span>
+                  </span>
+                  <Wrench className="w-4 h-4 text-orange-400" />
+                  <span className="text-sm font-mono font-bold text-orange-300">MANTENIMIENTO</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-2 bg-black/40 rounded-lg border border-white/10">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                  </span>
+                  <span className="text-sm font-mono font-bold text-gray-300">{playersOnline.toLocaleString()} En Linea</span>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 px-4">
               <Button className="w-full bg-[#FFC107] text-black font-display font-black uppercase py-3 rounded-lg border-b-4 border-[#b38600] cursor-pointer">
                 Jugar Ahora
               </Button>

@@ -200,7 +200,7 @@ function parseInline(text: string): ParsedNode[] {
       continue;
     }
 
-    // Link
+    // Link [text](url)
     const linkMatch = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/);
     if (linkMatch) {
       nodes.push({
@@ -212,8 +212,20 @@ function parseInline(text: string): ParsedNode[] {
       continue;
     }
 
+    // Auto-detect URLs (http:// or https://)
+    const urlMatch = remaining.match(/^(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/);
+    if (urlMatch) {
+      nodes.push({
+        type: "autolink",
+        content: urlMatch[1],
+        url: urlMatch[1],
+      });
+      remaining = remaining.slice(urlMatch[0].length);
+      continue;
+    }
+
     // Plain text
-    const textMatch = remaining.match(/^[^*_~|`\[\]\\]+/);
+    const textMatch = remaining.match(/^[^*_~|`\[\]\\https]+/);
     if (textMatch) {
       nodes.push({ type: "text", content: textMatch[0] });
       remaining = remaining.slice(textMatch[0].length);
@@ -329,7 +341,19 @@ function renderNode(node: ParsedNode, index: number): React.ReactNode {
           href={node.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-[#00b0f4] hover:underline"
+          className="text-[#965CD9] hover:text-[#A878E6] hover:underline transition-colors"
+        >
+          {node.content as string}
+        </a>
+      );
+    case "autolink":
+      return (
+        <a
+          key={index}
+          href={node.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[#965CD9] hover:text-[#A878E6] hover:underline transition-colors break-all"
         >
           {node.content as string}
         </a>
