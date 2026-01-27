@@ -90,9 +90,9 @@ export function Footer() {
 
           {/* Links - Explorar */}
           <div>
-            <h4 className="font-display text-lg text-white mb-4 uppercase tracking-wide">
+            <h3 className="font-display text-lg text-white mb-4 uppercase tracking-wide">
               Explorar
-            </h4>
+            </h3>
             <ul className="space-y-3 text-gray-400">
               <li>
                 <Link href="/" className="hover:text-[#FFC107] transition-colors">
@@ -122,9 +122,9 @@ export function Footer() {
 
           {/* Soporte */}
           <div>
-            <h4 className="font-display text-lg text-white mb-4 uppercase tracking-wide">
+            <h3 className="font-display text-lg text-white mb-4 uppercase tracking-wide">
               Soporte
-            </h4>
+            </h3>
             <ul className="space-y-3 text-gray-400">
               <li>
                 <a href="#" className="hover:text-[#FFC107] transition-colors">

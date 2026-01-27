@@ -126,7 +126,7 @@ export function Navbar() {
 
           {/* Mobile menu button */}
           <div className="lg:hidden ml-auto">
-            <button
+            <button aria-label="Abrir menú"
               onClick={() => setIsOpen(!isOpen)}
               className="p-2 rounded-md text-gray-300 hover:text-white focus:outline-none"
             >

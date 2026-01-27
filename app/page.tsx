@@ -165,7 +165,7 @@ export default function Page() {
                   <feature.icon className="w-7 h-7" />
                 </div>
                 <div>
-                  <h4 className="text-white font-body text-sm font-bold">{feature.title}</h4>
+                  <h2 className="text-white font-body text-sm font-bold">{feature.title}</h2>
                   <p className="text-gray-500 text-xs">{feature.desc}</p>
                 </div>
               </motion.div>
