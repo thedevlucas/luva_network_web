@@ -17,6 +17,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     },
     {
+      url: `${baseUrl}/news/apertura-del-servidor-muy-pronto-web-oficial-inaugurada`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    },
+    {
       url: `${baseUrl}/store`,
       lastModified: new Date(),
       changeFrequency: 'monthly',
