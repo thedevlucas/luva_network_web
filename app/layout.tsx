@@ -44,13 +44,17 @@ export const metadata: Metadata = {
   verification: {
     google: "M9Txh9CLeQr_988Iz88Gl12l6Xl7fV20_HoRox5_VKg",
   },
-
   icons: {
-    icon: "/assets/luva-logo.png",
-    shortcut: "/assets/luva-logo.png",
-    apple: "/assets/apple-icon.png",
+    icon: [
+      { url: "/icon0.svg", type: "image/svg+xml" },
+      { url: "/icon1.png", sizes: "96x96", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/apple-icon.png",
   },
-  
+
+  manifest: "/manifest.json",
+
   openGraph: {
     title: "LuvaNetwork - Servidor de Hytale",
     description: "La mejor experiencia de Hytale en habla hispana",
