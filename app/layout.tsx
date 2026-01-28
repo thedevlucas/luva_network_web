@@ -40,6 +40,10 @@ export const metadata: Metadata = {
     "server hytale",
     "servidor hytale",
   ],
+  
+  verification: {
+    google: "M9Txh9CLeQr_988Iz88Gl12l6Xl7fV20_HoRox5_VKg",
+  },
 
   icons: {
     icon: "/assets/luva-logo.png",
