@@ -1043,10 +1043,27 @@ app.get("/api/admin/groups/:name", requireAuth, requireAdmin, async (req, res) =
 
     const perms = await q(
       `
-      SELECT permission, value, server, world
+      SELECT id, permission, value, server, world
       FROM group_permissions
       WHERE group_id = ?
       ORDER BY permission ASC
+      `,
+      [g.id]
+    );
+
+    const members = await q(
+      `
+      SELECT 
+        ug.id,
+        u.id AS user_id,
+        u.username,
+        u.uuid,
+        ug.is_primary,
+        ug.expires_at
+      FROM user_groups ug
+      JOIN users u ON ug.user_id = u.id
+      WHERE ug.group_id = ?
+      ORDER BY u.username ASC
       `,
       [g.id]
     );
@@ -1057,12 +1074,21 @@ app.get("/api/admin/groups/:name", requireAuth, requireAdmin, async (req, res) =
       displayName: g.display_name ?? g.name,
       weight: Number(g.weight ?? 0),
       isDefault: !!Number(g.is_default ?? 0),
-      type: g.type, // "group"
+      type: g.type,
       permissions: perms.map((p) => ({
+        id: Number(p.id),
         permission: p.permission,
         value: Number(p.value ?? 0),
         server: p.server ?? "",
         world: p.world ?? "",
+      })),
+      members: members.map((m) => ({
+        id: Number(m.id),
+        userId: Number(m.user_id),
+        username: m.username,
+        uuid: m.uuid,
+        isPrimary: !!Number(m.is_primary ?? 0),
+        expiresAt: m.expires_at,
       })),
     });
   } catch (e) {
@@ -1086,8 +1112,8 @@ app.post("/api/admin/groups/:name/permissions", requireAuth, requireAdmin, async
     }
 
     const existing = await q(
-      "SELECT id FROM group_permissions WHERE name = ? AND permission = ? LIMIT 1",
-      [groupName, permission]
+      "SELECT id FROM group_permissions WHERE group_id = ? AND permission = ? LIMIT 1",
+      [groups[0].id, permission]
     );
 
     if (existing && existing.length > 0) {
@@ -1095,9 +1121,9 @@ app.post("/api/admin/groups/:name/permissions", requireAuth, requireAdmin, async
     }
 
     await q(
-      `INSERT INTO group_permissions (name, permission, value, server, world, expiry, contexts)
-       VALUES (?, ?, ?, ?, ?, 0, '{}')`,
-      [groupName, permission, value ? 1 : 0, server, world]
+      `INSERT INTO group_permissions (group_id, permission, value, server, world)
+       VALUES (?, ?, ?, ?, ?)`,
+      [groups[0].id, permission, value ? 1 : 0, server, world]
     );
 
     res.json({ success: true, message: "Permission added" });
@@ -1111,9 +1137,14 @@ app.delete("/api/admin/groups/:name/permissions/:permissionId", requireAuth, req
   try {
     const { name: groupName, permissionId } = req.params;
 
+    const groups = await q("SELECT id FROM `groups` WHERE name = ? LIMIT 1", [groupName]);
+    if (!groups || groups.length === 0) {
+      return res.status(404).json({ error: "Group not found" });
+    }
+
     const perms = await q(
-      "SELECT id FROM group_permissions WHERE id = ? AND name = ? LIMIT 1",
-      [permissionId, groupName]
+      "SELECT id FROM group_permissions WHERE id = ? AND group_id = ? LIMIT 1",
+      [permissionId, groups[0].id]
     );
 
     if (!perms || perms.length === 0) {
@@ -1138,9 +1169,14 @@ app.patch("/api/admin/groups/:name/permissions/:permissionId", requireAuth, requ
       return res.status(400).json({ error: "Value is required" });
     }
 
+    const groups = await q("SELECT id FROM `groups` WHERE name = ? LIMIT 1", [groupName]);
+    if (!groups || groups.length === 0) {
+      return res.status(404).json({ error: "Group not found" });
+    }
+
     const perms = await q(
-      "SELECT id FROM group_permissions WHERE id = ? AND name = ? LIMIT 1",
-      [permissionId, groupName]
+      "SELECT id FROM group_permissions WHERE id = ? AND group_id = ? LIMIT 1",
+      [permissionId, groups[0].id]
     );
 
     if (!perms || perms.length === 0) {
@@ -1178,6 +1214,111 @@ app.post("/api/admin/groups", requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+app.post("/api/admin/groups/:name/members", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const groupName = req.params.name;
+    const { username, expiresAt = null } = req.body || {};
+
+    if (!username) {
+      return res.status(400).json({ error: "Username is required" });
+    }
+
+    const groups = await q("SELECT id FROM `groups` WHERE name = ? LIMIT 1", [groupName]);
+    if (!groups || groups.length === 0) {
+      return res.status(404).json({ error: "Group not found" });
+    }
+
+    const users = await q("SELECT id FROM users WHERE username = ? LIMIT 1", [username]);
+    if (!users || users.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const existing = await q(
+      "SELECT id FROM user_groups WHERE user_id = ? AND group_id = ? LIMIT 1",
+      [users[0].id, groups[0].id]
+    );
+
+    if (existing && existing.length > 0) {
+      return res.status(400).json({ error: "User already in this group" });
+    }
+
+    await q(
+      "INSERT INTO user_groups (user_id, group_id, expires_at) VALUES (?, ?, ?)",
+      [users[0].id, groups[0].id, expiresAt]
+    );
+
+    res.json({ success: true, message: "User added to group" });
+  } catch (e) {
+    console.error("POST /api/admin/groups/:name/members error:", e);
+    res.status(500).json({ error: "DB error", details: String(e?.message ?? e) });
+  }
+});
+
+app.get("/api/admin/groups/:name/members", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const groupName = req.params.name;
+
+    const groups = await q("SELECT id FROM `groups` WHERE name = ? LIMIT 1", [groupName]);
+    if (!groups || groups.length === 0) {
+      return res.status(404).json({ error: "Group not found" });
+    }
+
+    const members = await q(
+      `
+      SELECT 
+        ug.id,
+        u.id AS user_id,
+        u.username,
+        ug.expires_at
+      FROM user_groups ug
+      JOIN users u ON ug.user_id = u.id
+      WHERE ug.group_id = ?
+      ORDER BY u.username ASC
+      `,
+      [groups[0].id]
+    );
+
+    res.json(
+      members.map((m) => ({
+        id: Number(m.id),
+        userId: Number(m.user_id),
+        username: m.username,
+        expiresAt: m.expires_at,
+      }))
+    );
+  } catch (e) {
+    console.error("GET /api/admin/groups/:name/members error:", e);
+    res.status(500).json({ error: "DB error", details: String(e?.message ?? e) });
+  }
+});
+
+app.delete("/api/admin/groups/:name/members/:memberId", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { name: groupName, memberId } = req.params;
+
+    const groups = await q("SELECT id FROM `groups` WHERE name = ? LIMIT 1", [groupName]);
+    if (!groups || groups.length === 0) {
+      return res.status(404).json({ error: "Group not found" });
+    }
+
+    const members = await q(
+      "SELECT id FROM user_groups WHERE id = ? AND group_id = ? LIMIT 1",
+      [memberId, groups[0].id]
+    );
+
+    if (!members || members.length === 0) {
+      return res.status(404).json({ error: "Member not found in this group" });
+    }
+
+    await q("DELETE FROM user_groups WHERE id = ?", [memberId]);
+
+    res.json({ success: true, message: "User removed from group" });
+  } catch (e) {
+    console.error("DELETE /api/admin/groups/:name/members/:memberId error:", e);
+    res.status(500).json({ error: "DB error", details: String(e?.message ?? e) });
+  }
+});
+
 app.delete("/api/admin/groups/:name", requireAuth, requireAdmin, async (req, res) => {
   try {
     const groupName = req.params.name;
@@ -1191,7 +1332,7 @@ app.delete("/api/admin/groups/:name", requireAuth, requireAdmin, async (req, res
       return res.status(404).json({ error: "Group not found" });
     }
 
-    await q("DELETE FROM group_permissions WHERE name = ?", [groupName]);
+    await q("DELETE FROM group_permissions WHERE group_id = ?", [groups[0].id]);
 
     await q("DELETE FROM user_groups WHERE group_id = ?", [groups[0].id]);
 
