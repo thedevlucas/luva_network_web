@@ -154,7 +154,7 @@ export function Footer() {
         <div className="pt-8 border-t border-white/5">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-gray-500 text-center md:text-left">
-              &copy; {new Date().getFullYear()} <b>{siteName}</b>. No afiliado con Mojang o Microsoft.
+              &copy; {new Date().getFullYear()} <b>{siteName}</b>. Todos los derechos reservados
             </p>
 
             {/* “Page loaded…” badge */}

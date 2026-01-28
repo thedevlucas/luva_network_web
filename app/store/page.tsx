@@ -191,7 +191,7 @@ export default function Store() {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="group flex items-center gap-3 bg-[#965CD9] hover:bg-[#A878E6] text-white font-display font-bold text-lg uppercase py-4 px-8 rounded-xl transition-all cursor-pointer"
+                className="group flex items-center gap-3 bg-[#7B39D1] hover:bg-[#A878E6] text-white font-display font-bold text-lg uppercase py-4 px-8 rounded-xl transition-all cursor-pointer"
               >
                 Explorar Rangos
                 <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -253,7 +253,7 @@ export default function Store() {
                   <benefit.icon className="w-6 h-6" />
                 </div>
                 <div>
-                  <h4 className="text-white font-bold font-sans">{benefit.title}</h4>
+                  <h2 className="text-white font-bold font-sans">{benefit.title}</h2>
                   <p className="text-gray-500 text-sm">{benefit.desc}</p>
                 </div>
               </motion.div>

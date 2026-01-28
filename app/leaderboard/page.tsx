@@ -171,12 +171,12 @@ export default function Leaderboard() {
                     </div>
 
                     <div className="text-left">
-                      <h3 className={cn(
+                      <h2 className={cn(
                         "text-xl font-display transition-colors",
                         isSelected ? "text-white" : "text-white"
                       )}>
                         {mode.label}
-                      </h3>
+                      </h2>
                       <p className="text-xs text-gray-500">
                         {mode.id === "skywars" && "Combate PvP en Islas Flotantes"}
                         {mode.id === "survival" && "Modo Clasico"}
@@ -211,7 +211,7 @@ export default function Leaderboard() {
                   className={cn(
                     "flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all",
                     isSelected
-                      ? "bg-[#965CD9] text-white shadow-lg shadow-[#965CD9]/20"
+                      ? "bg-[#7B39D1] text-white shadow-lg shadow-[#965CD9]/20"
                       : "bg-[#1a1a24] text-gray-400 hover:text-white border border-white/5"
                   )}
                 >

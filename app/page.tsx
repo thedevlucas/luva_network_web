@@ -90,7 +90,7 @@ export default function Page() {
               </span>
             </h1>
             <p className="text-xl md:text-2xl text-gray-200 font-medium max-w-2xl mx-auto drop-shadow-md">
-              Unite a nuestra network de Hytale: distintos modos, Skywars. Bedwars, Survival y eventos todo el tiempo.
+              Unete a nuestra network de Hytale: distintos modos, Skywars. Bedwars, Survival y eventos todo el tiempo.
             </p>
           </motion.div>
 
@@ -281,12 +281,12 @@ export default function Page() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="flex flex-col md:flex-row items-center justify-between gap-8">
             <div>
-              <span className="text-[#FFC107] font-bold uppercase tracking-wider text-sm">CREA TU SERVIDOR</span>
+              <span className="text-[#FFC107] font-bold uppercase tracking-wider text-sm">TIENDA</span>
               <h2 className="text-4xl md:text-5xl font-display text-white mt-2 mb-4">
-                ¿LISTO PARA COMENZAR?
+                ¡ADQUIERE TU RANGO!
               </h2>
               <p className="text-gray-300 max-w-lg">
-                Comienza hoy y te ofreceremos un <span className="text-[#FFC107] font-bold">descuento</span> en tu primera factura con nuestra promocion de nuevos clientes! Disponible por tiempo limitado.
+                ¡Aprovecha hoy mismo! Llévate un <span className="text-[#FFC107] font-bold">descuento</span> exclusivo en tu primera compra. Solo por tiempo limitado durante la fase de apertura.
               </p>
             </div>
 

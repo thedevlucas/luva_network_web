@@ -69,6 +69,9 @@ export default function GroupsPage() {
   const [addingPermission, setAddingPermission] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const searchParams = useSearchParams();
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [newMemberName, setNewMemberName] = useState("");
+  const [addingMember, setAddingMember] = useState(false);
 
   useEffect(() => {
     fetchGroups();
@@ -154,6 +157,26 @@ export default function GroupsPage() {
       setError("Error al agregar el permiso");
     } finally {
       setAddingPermission(false);
+    }
+  };
+
+  const handleAddMember = async () => {
+    if (!newMemberName.trim() || !selectedGroup) return;
+
+    try {
+      setAddingMember(true);
+      await apiFetch(`/api/admin/groups/${selectedGroup.name}/members`, {
+        method: "POST",
+        body: JSON.stringify({ username: newMemberName.trim() }),
+      });
+      setShowAddMemberModal(false);
+      setNewMemberName("");
+      fetchGroupDetail(selectedGroup.name);
+    } catch (err) {
+      console.error("Error adding member:", err);
+      setError("Error al agregar el miembro al grupo");
+    } finally {
+      setAddingMember(false);
     }
   };
 
@@ -420,25 +443,33 @@ export default function GroupsPage() {
 
               {/* Members Section */}
               <div className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Users className="w-5 h-5 text-[#965CD9]" />
-                  <h3 className="text-lg font-medium text-white">
-                    Miembros ({(selectedGroup.members ?? []).length})
-                  </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-5 h-5 text-[#965CD9]" />
+                    <h3 className="text-lg font-medium text-white">
+                      Miembros ({(selectedGroup.members ?? []).length})
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setShowAddMemberModal(true)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-[#965CD9]/20 hover:bg-[#965CD9]/30 text-[#B58CFF] rounded-lg transition-colors text-sm cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Agregar
+                  </button>
                 </div>
 
                 {(selectedGroup.members ?? []).length === 0 ? (
-
                   <div className="text-center py-8 bg-[#0a0a0e] rounded-xl">
                     <Users className="w-10 h-10 mx-auto text-gray-600 mb-3" />
                     <p className="text-gray-400">Este grupo no tiene miembros</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[200px] overflow-y-auto">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-2">
                     {(selectedGroup.members ?? []).map((member) => (
                       <div
                         key={member.id}
-                        className="flex items-center gap-3 p-3 bg-[#0a0a0e] rounded-lg"
+                        className="flex items-center gap-3 p-3 bg-[#0a0a0e] rounded-lg border border-white/5"
                       >
                         <div className="w-8 h-8 rounded-lg bg-[#965CD9]/20 flex items-center justify-center text-[#965CD9] font-bold uppercase text-sm">
                           {member.username.charAt(0)}
@@ -575,6 +606,64 @@ export default function GroupsPage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Add Member Modal */}
+    <AnimatePresence>
+      {showAddMemberModal && selectedGroup && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-[#1a1a24] rounded-2xl w-full max-w-md overflow-hidden"
+          >
+            <div className="p-6 border-b border-white/5 flex items-center justify-between">
+              <h2 className="text-xl font-display text-white">Agregar Miembro</h2>
+              <button
+                onClick={() => setShowAddMemberModal(false)}
+                className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="p-3 bg-[#0a0a0e] rounded-lg">
+                <p className="text-gray-400 text-sm">Agregar como:</p>
+                {/* AQUÍ ESTÁ EL CAMBIO: Ponemos "miembro" en lugar de selectedGroup.name */}
+                <p className="text-white font-medium capitalize">miembro</p> 
+              </div>
+              <div>
+                <label htmlFor="member-name" className="text-gray-400 text-sm mb-2 block">Nombre del Usuario</label>
+                <input
+                  id="member-name"
+                  type="text"
+                  value={newMemberName}
+                  onChange={(e) => setNewMemberName(e.target.value)}
+                  placeholder="Nombre del jugador..."
+                  className="w-full px-4 py-3 bg-[#0a0a0e] border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-[#965CD9]/50"
+                />
+              </div>
+            </div>
+            <div className="p-6 border-t border-white/5 flex gap-3">
+              <button
+                onClick={() => setShowAddMemberModal(false)}
+                className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleAddMember}
+                disabled={addingMember || !newMemberName.trim()}
+                className="flex-1 px-4 py-3 bg-[#965CD9] hover:bg-[#A878E6] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {addingMember ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
+                Agregar
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
     </div>
   );
 }

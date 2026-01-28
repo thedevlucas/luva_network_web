@@ -116,6 +116,7 @@ export default function News() {
               <input
                 type="text"
                 placeholder="Buscar noticias..."
+                aria-label="Buscar noticias del servidor"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-12 pr-4 py-3 bg-[#1a1a24] border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-[#FFC107]/50 transition-colors"
@@ -131,7 +132,7 @@ export default function News() {
                   onClick={() => setSelectedCategory(cat.id)}
                   className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
                     selectedCategory === cat.id
-                      ? "bg-[#965CD9] text-white"
+                      ? "bg-[#7B39D1] text-white"
                       : "bg-[#1a1a24] text-gray-400 hover:text-white hover:bg-white/10"
                   }`}
                 >
