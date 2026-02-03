@@ -1290,127 +1290,129 @@ app.get("/api/admin/test", (req, res) => {
 });
 
 // Temporary admin endpoints without auth for testing
-app.get("/api/admin/groups", async (req, res) => {
-  try {
-    const groups = [
-      {
-        id: 1,
-        name: "default",
-        displayName: "Usuario",
-        weight: 0,
-        isDefault: true,
-        type: "group",
-        permissionCount: 0,
-        memberCount: 2,
-      },
-      {
-        id: 2,
-        name: "vip",
-        displayName: "VIP",
-        weight: 10,
-        isDefault: false,
-        type: "group", 
-        permissionCount: 0,
-        memberCount: 1,
-      },
-      {
-        id: 3,
-        name: "admin",
-        displayName: "Administrador",
-        weight: 500,
-        isDefault: false,
-        type: "group",
-        permissionCount: 8,
-        memberCount: 2,
-      }
-    ];
+// COMENTADO - Endpoint duplicado con datos hardcodeados
+// app.get("/api/admin/groups", async (req, res) => {
+//   try {
+//     const groups = [
+//       {
+//         id: 1,
+//         name: "default",
+//         displayName: "Usuario",
+//         weight: 0,
+//         isDefault: true,
+//         type: "group",
+//         permissionCount: 0,
+//         memberCount: 2,
+//       },
+//       {
+//         id: 2,
+//         name: "vip",
+//         displayName: "VIP",
+//         weight: 10,
+//         isDefault: false,
+//         type: "group", 
+//         permissionCount: 0,
+//         memberCount: 1,
+//       },
+//       {
+//         id: 3,
+//         name: "admin",
+//         displayName: "Administrador",
+//         weight: 500,
+//         isDefault: false,
+//         type: "group",
+//         permissionCount: 8,
+//         memberCount: 2,
+//       }
+//     ];
 
-    res.json(groups);
-  } catch (e) {
-    console.error("GET /api/admin/groups (no auth) error:", e);
-    return res.status(500).json({ error: "Internal error" });
-  }
-});
+//     res.json(groups);
+//   } catch (e) {
+//     console.error("GET /api/admin/groups (no auth) error:", e);
+//     return res.status(500).json({ error: "Internal error" });
+//   }
+// });
 
-app.get("/api/admin/groups/:name", async (req, res) => {
-  try {
-    const groupName = req.params.name;
-    
-    const groups = {
-      "default": {
-        id: 1,
-        name: "default",
-        displayName: "Usuario",
-        weight: 0,
-        isDefault: true,
-        type: "group",
-        permissions: [],
-        members: [
-          {
-            id: 1,
-            userId: 160,
-            username: "imAndix",
-            uuid: "2d440a28-d746-41d1-a2bd-906c3bc82832",
-            isPrimary: true,
-            expiresAt: null,
-          }
-        ]
-      },
-      "admin": {
-        id: 3,
-        name: "admin", 
-        displayName: "Administrador",
-        weight: 500,
-        isDefault: false,
-        type: "group",
-        permissions: [
-          {
-            id: 1,
-            permission: "luva.admin.breakblocks",
-            value: 1,
-            server: "global",
-            world: "global"
-          },
-          {
-            id: 2,
-            permission: "luva.hologram.create",
-            value: 1,
-            server: "global",
-            world: "global"
-          }
-        ],
-        members: [
-          {
-            id: 2,
-            userId: 2,
-            username: "rehen",
-            uuid: "b8acc972-307f-4ed3-8083-f7941cb24c8b",
-            isPrimary: true,
-            expiresAt: null,
-          },
-          {
-            id: 3,
-            userId: 152,
-            username: "Carriedo",
-            uuid: "cf97dc66-495a-4e07-a932-e821b5c75af8",
-            isPrimary: true,
-            expiresAt: null,
-          }
-        ]
-      }
-    };
-
-    const group = groups[groupName];
-    if (!group) {
-      return res.status(404).json({ error: "Group not found" });
-    }
-
-    res.json(group);
-  } catch (e) {
-    console.error("GET /api/admin/groups/:name (no auth) error:", e);
-    return res.status(500).json({ error: "Internal error" });
-  }
-});
+// COMENTADO - Endpoint duplicado con datos hardcodeados
+// app.get("/api/admin/groups/:name", async (req, res) => {
+//   try {
+//     const groupName = req.params.name;
+//     
+//     const groups = {
+//       "default": {
+//         id: 1,
+//         name: "default",
+//         displayName: "Usuario",
+//         weight: 0,
+//         isDefault: true,
+//         type: "group",
+//         permissions: [],
+//         members: [
+//           {
+//             id: 1,
+//             userId: 160,
+//             username: "imAndix",
+//             uuid: "2d440a28-d746-41d1-a2bd-906c3bc82832",
+//             isPrimary: true,
+//             expiresAt: null,
+//           }
+//         ]
+//       },
+//       "admin": {
+//         id: 3,
+//         name: "admin", 
+//         displayName: "Administrador",
+//         weight: 500,
+//         isDefault: false,
+//         type: "group",
+//         permissions: [
+//           {
+//             id: 1,
+//             permission: "luva.admin.breakblocks",
+//             value: 1,
+//             server: "global",
+//             world: "global"
+//           },
+//           {
+//             id: 2,
+//             permission: "luva.hologram.create",
+//             value: 1,
+//             server: "global",
+//             world: "global"
+//           }
+//         ],
+//         members: [
+//           {
+//             id: 2,
+//             userId: 2,
+//             username: "rehen",
+//             uuid: "b8acc972-307f-4ed3-8083-f7941cb24c8b",
+//             isPrimary: true,
+//             expiresAt: null,
+//           },
+//           {
+//             id: 3,
+//             userId: 152,
+//             username: "Carriedo",
+//             uuid: "cf97dc66-495a-4e07-a932-e821b5c75af8",
+//             isPrimary: true,
+//             expiresAt: null,
+//           }
+//         ]
+//       }
+//     };
+// 
+//     const group = groups[groupName];
+//     if (!group) {
+//       return res.status(404).json({ error: "Group not found" });
+//     }
+// 
+//     res.json(group);
+//   } catch (e) {
+//     console.error("GET /api/admin/groups/:name (no auth) error:", e);
+//     return res.status(500).json({ error: "Internal error" });
+//   }
+// });
 
 app.get("/api/admin/stats", async (req, res) => {
   try {
