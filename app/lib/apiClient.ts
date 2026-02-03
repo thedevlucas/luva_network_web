@@ -1,7 +1,7 @@
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   process.env.NEXT_PUBLIC_API_BASE_URL ??
-  "http://127.0.0.1:8080";
+  "http://localhost:8080";
 
 export const AUTH_TOKEN_KEY = "luva_auth_token"; //falta esto
 export const AUTH_USER_KEY = "luva_auth_user"; //falta esto

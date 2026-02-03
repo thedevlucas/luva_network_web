@@ -18,7 +18,8 @@ export function useArenaLeaderboard() {
   return useQuery({
     queryKey: ["/api/arena/leaderboard"],
     queryFn: async () => {
-      const res = await fetch("/api/arena/leaderboard", { credentials: "include" });
+      const url = buildUrl("/api/arena/leaderboard", {});
+      const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch arena leaderboard");
       return res.json() as Promise<ArenaStats[]>;
     },
