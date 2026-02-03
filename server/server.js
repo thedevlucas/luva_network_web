@@ -521,17 +521,6 @@ app.get("/api/arena/leaderboard", async (req, res) => {
       return b.totalKills - a.totalKills;
     })
     .slice(0, 50); // Top 50
-
-    console.log("Returning", result.length, "arena players");
-    
-    // Log de debug para las primeras 3 entradas
-    if (result.length > 0) {
-      console.log("Top 3 players:", result.slice(0, 3).map(p => ({
-        username: p.username,
-        wins: p.totalWins,
-        kills: p.totalKills
-      })));
-    }
     
     res.json(result);
     
