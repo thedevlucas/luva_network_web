@@ -618,7 +618,7 @@ app.post("/api/auth/login", async (req, res) => {
       `SELECT 1 AS ok
        FROM user_groups ug
        JOIN \`groups\` g ON g.id = ug.group_id
-       WHERE ug.user_id = ? AND g.name = 'admin'
+       WHERE ug.user_id = ? AND g.name = 'owner'
        LIMIT 1`,
       [user.id]
     );
