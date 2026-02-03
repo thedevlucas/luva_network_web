@@ -257,8 +257,8 @@ function metricValue(stat, metric) {
   return stat.playtime;
 }
 
-const VALID_MODES = ["skywars", "survival", "duels"];
-const VALID_METRICS = ["kills", "wins", "playtime"];
+const VALID_MODES = ["arena", "skywars", "survival", "duels"];
+const VALID_METRICS = ["kills", "wins"];
 
 const fakePlayers = [
   { id: 1, username: "Rehen", avatarUrl: "https://api.dicebear.com/9.x/bottts/png?seed=NicoPvP", rank: "Owner" }
@@ -288,31 +288,278 @@ const fakeStats = [
   { playerId: 5, gameMode: "duels", kills: 620, wins: 300, playtime: 1900 },
 ];
 
-app.get("/api/leaderboard/:gameMode/:metric", (req, res) => {
-  const { gameMode, metric } = req.params;
+app.get("/api/leaderboard/:gameMode/:metric", async (req, res) => {
+  try {
+    const { gameMode, metric } = req.params;
 
-  if (!VALID_MODES.includes(gameMode)) {
-    return res.status(400).json({ message: "Invalid gameMode", field: "gameMode" });
+    if (!VALID_MODES.includes(gameMode)) {
+      return res.status(400).json({ message: "Invalid gameMode", field: "gameMode" });
+    }
+    if (!VALID_METRICS.includes(metric)) {
+      return res.status(400).json({ message: "Invalid metric", field: "metric" });
+    }
+
+    // For arena mode, use real data from arena_pvp_stats
+    if (gameMode === "arena") {
+      const gameModeFilter = metric === "kills" ? "uhc_duel" : "competitive";
+      
+      // Get kills data
+      const killsData = await q(
+        `
+        SELECT 
+          aps.player_name as username,
+          aps.player_uuid as uuid,
+          COUNT(*) as kills
+        FROM arena_pvp_stats aps
+        WHERE aps.game_mode = ?
+        AND aps.killer_uuid IS NOT NULL
+        GROUP BY aps.player_uuid, aps.player_name
+        ORDER BY kills DESC
+        LIMIT 10
+        `,
+        [gameModeFilter]
+      );
+
+      // Get wins data (for now, we'll count unique matches where player was the killer)
+      const winsData = await q(
+        `
+        SELECT 
+          aps.player_name as username,
+          aps.player_uuid as uuid,
+          COUNT(DISTINCT aps.match_id) as wins
+        FROM arena_pvp_stats aps
+        WHERE aps.game_mode = ?
+        AND aps.match_id IS NOT NULL
+        AND aps.killer_uuid = aps.player_uuid
+        GROUP BY aps.player_uuid, aps.player_name
+        ORDER BY wins DESC
+        LIMIT 10
+        `,
+        [gameModeFilter]
+      );
+
+      const data = metric === "kills" ? killsData : winsData;
+
+      // Get user ranks
+      const usernames = data.map(d => d.username);
+      const rankMap = new Map();
+      
+      if (usernames.length > 0) {
+        const rankData = await q(
+          `
+          SELECT u.username, g.display_name
+          FROM users u
+          LEFT JOIN user_groups ug ON ug.user_id = u.id AND ug.is_primary = 1
+          LEFT JOIN groups g ON g.id = ug.group_id
+          WHERE u.username IN (${usernames.map(() => '?').join(',')})
+          `,
+          usernames
+        );
+        
+        rankData.forEach(r => {
+          rankMap.set(r.username, r.display_name || 'Default');
+        });
+      }
+
+      const result = data.map((row, index) => ({
+        username: row.username,
+        avatarUrl: `https://hyvatar.io/render/${row.username}?size=96`,
+        rank: rankMap.get(row.username) || 'Default',
+        value: metric === "kills" ? Number(row.kills) : Number(row.wins)
+      }));
+
+      return res.json(result);
+    }
+
+    // For other game modes, use fake data
+    const rows = fakeStats
+      .filter((s) => s.gameMode === gameMode)
+      .map((s) => {
+        const p = fakePlayers.find((pp) => pp.id === s.playerId);
+        return {
+          username: p?.username ?? "Unknown",
+          avatarUrl: p?.avatarUrl ?? "",
+          rank: p?.rank ?? "DEFAULT",
+          value: metricValue(s, metric),
+        };
+      })
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
+
+    res.json(rows);
+  } catch (err) {
+    console.error("Leaderboard error:", err);
+    return res.status(500).json({ error: "Internal error" });
   }
-  if (!VALID_METRICS.includes(metric)) {
-    return res.status(400).json({ message: "Invalid metric", field: "metric" });
+});
+
+app.get("/api/arena/leaderboard", async (req, res) => {
+  try {
+    // Get informal (uhc_duel) stats
+    const informalKillsData = await q(
+      `
+      SELECT 
+        aps.player_name as username,
+        aps.player_uuid as uuid,
+        COUNT(*) as kills
+      FROM arena_pvp_stats aps
+      WHERE aps.game_mode = 'uhc_duel'
+      AND aps.killer_uuid IS NOT NULL
+      GROUP BY aps.player_uuid, aps.player_name
+      ORDER BY kills DESC
+      LIMIT 50
+      `
+    );
+
+    const informalWinsData = await q(
+      `
+      SELECT 
+        aps.player_name as username,
+        aps.player_uuid as uuid,
+        COUNT(DISTINCT aps.match_id) as wins
+      FROM arena_pvp_stats aps
+      WHERE aps.game_mode = 'uhc_duel'
+      AND aps.match_id IS NOT NULL
+      AND aps.killer_uuid = aps.player_uuid
+      GROUP BY aps.player_uuid, aps.player_name
+      ORDER BY wins DESC
+      LIMIT 50
+      `
+    );
+
+    // Get competitive stats
+    const competitiveKillsData = await q(
+      `
+      SELECT 
+        aps.player_name as username,
+        aps.player_uuid as uuid,
+        COUNT(*) as kills
+      FROM arena_pvp_stats aps
+      WHERE aps.game_mode = 'competitive'
+      AND aps.killer_uuid IS NOT NULL
+      GROUP BY aps.player_uuid, aps.player_name
+      ORDER BY kills DESC
+      LIMIT 50
+      `
+    );
+
+    const competitiveWinsData = await q(
+      `
+      SELECT 
+        aps.player_name as username,
+        aps.player_uuid as uuid,
+        COUNT(DISTINCT aps.match_id) as wins
+      FROM arena_pvp_stats aps
+      WHERE aps.game_mode = 'competitive'
+      AND aps.match_id IS NOT NULL
+      AND aps.killer_uuid = aps.player_uuid
+      GROUP BY aps.player_uuid, aps.player_name
+      ORDER BY wins DESC
+      LIMIT 50
+      `
+    );
+
+    // Combine all data
+    const statsMap = new Map();
+
+    // Process informal stats
+    informalKillsData.forEach(row => {
+      statsMap.set(row.uuid, {
+        username: row.username,
+        uuid: row.uuid,
+        informalKills: Number(row.kills),
+        informalWins: 0,
+        competitiveKills: 0,
+        competitiveWins: 0,
+      });
+    });
+
+    informalWinsData.forEach(row => {
+      if (statsMap.has(row.uuid)) {
+        statsMap.get(row.uuid).informalWins = Number(row.wins);
+      } else {
+        statsMap.set(row.uuid, {
+          username: row.username,
+          uuid: row.uuid,
+          informalKills: 0,
+          informalWins: Number(row.wins),
+          competitiveKills: 0,
+          competitiveWins: 0,
+        });
+      }
+    });
+
+    // Process competitive stats
+    competitiveKillsData.forEach(row => {
+      if (statsMap.has(row.uuid)) {
+        statsMap.get(row.uuid).competitiveKills = Number(row.kills);
+      } else {
+        statsMap.set(row.uuid, {
+          username: row.username,
+          uuid: row.uuid,
+          informalKills: 0,
+          informalWins: 0,
+          competitiveKills: Number(row.kills),
+          competitiveWins: 0,
+        });
+      }
+    });
+
+    competitiveWinsData.forEach(row => {
+      if (statsMap.has(row.uuid)) {
+        statsMap.get(row.uuid).competitiveWins = Number(row.wins);
+      } else {
+        statsMap.set(row.uuid, {
+          username: row.username,
+          uuid: row.uuid,
+          informalKills: 0,
+          informalWins: 0,
+          competitiveKills: 0,
+          competitiveWins: Number(row.wins),
+        });
+      }
+    });
+
+    // Get user ranks
+    const allUsernames = Array.from(statsMap.values()).map(s => s.username);
+    const rankMap = new Map();
+    
+    if (allUsernames.length > 0) {
+      const rankData = await q(
+        `
+        SELECT u.username, g.display_name
+        FROM users u
+        LEFT JOIN user_groups ug ON ug.user_id = u.id AND ug.is_primary = 1
+        LEFT JOIN groups g ON g.id = ug.group_id
+        WHERE u.username IN (${allUsernames.map(() => '?').join(',')})
+        `,
+        allUsernames
+      );
+      
+      rankData.forEach(r => {
+        rankMap.set(r.username, r.display_name || 'Default');
+      });
+    }
+
+    // Convert to array and calculate totals
+    const result = Array.from(statsMap.values()).map(stats => ({
+      ...stats,
+      avatarUrl: `https://hyvatar.io/render/${stats.username}?size=96`,
+      rank: rankMap.get(stats.username) || 'Default',
+      totalKills: stats.informalKills + stats.competitiveKills,
+      totalWins: stats.informalWins + stats.competitiveWins,
+    })).sort((a, b) => {
+      // Sort by total kills first, then total wins
+      const totalA = a.totalKills * 100 + a.totalWins;
+      const totalB = b.totalKills * 100 + b.totalWins;
+      return totalB - totalA;
+    }).slice(0, 10);
+
+    res.json(result);
+  } catch (err) {
+    console.error("Arena leaderboard error:", err);
+    return res.status(500).json({ error: "Internal error" });
   }
-
-  const rows = fakeStats
-    .filter((s) => s.gameMode === gameMode)
-    .map((s) => {
-      const p = fakePlayers.find((pp) => pp.id === s.playerId);
-      return {
-        username: p?.username ?? "Unknown",
-        avatarUrl: p?.avatarUrl ?? "",
-        rank: p?.rank ?? "DEFAULT",
-        value: metricValue(s, metric),
-      };
-    })
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 10);
-
-  res.json(rows);
 });
 
 app.get("/api/players/get/:username", (req, res) => {

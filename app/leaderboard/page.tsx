@@ -5,7 +5,9 @@ import { Footer } from "@/app/components/Footer";
 import { DiscordOverlay } from "@/app/components/DiscordOverlay";
 import { SocialSidebar } from "@/app/components/SocialSidebar";
 import { LeaderboardTable } from "@/app/components/LeaderboardTable";
+import { ArenaLeaderboardTable } from "@/app/components/ArenaLeaderboardTable";
 import { useLeaderboard, usePlayersCount, usePlayersCountHours } from "@/app/hooks/use-leaderboard";
+import { useArenaLeaderboard } from "@/app/hooks/use-arena-leaderboard";
 import { motion } from "framer-motion";
 import { Swords, Skull, Trophy, Crown, Medal, Target, Clock, Zap, ChevronRight, User } from "lucide-react";
 import { cn } from "@/app/lib/utils";
@@ -19,23 +21,25 @@ import duels from "@/public/assets/bg-adventure--3.jpg";
 
 
 const METRICS = [
-    { id: "kills", label: "Asesinatos", icon: Target },
-    { id: "wins", label: "Victorias", icon: Crown },
-    { id: "playtime", label: "Tiempo de Juego", icon: Clock },
+    { id: "kills", label: "Asesinatos", icon: Target, modes: ["arena", "skywars", "survival", "duels"] },
+    { id: "wins", label: "Victorias", icon: Crown, modes: ["arena", "skywars", "survival", "duels"] },
+    { id: "playtime", label: "Tiempo de Juego", icon: Clock, modes: ["skywars", "survival", "duels"] },
   ];
 
 const MODES = [
-  { id: "skywars",  label: "SkyWars",  icon: Trophy, color: "from-purple-500 to-pink-500",  bgImage: skywars.src },
-  { id: "survival", label: "Survival", icon: Crown,  color: "from-emerald-500 to-lime-400",  bgImage: survival.src },
-  { id: "duels",    label: "Duels",    icon: Swords, color: "from-sky-500 to-blue-500",      bgImage: duels.src },
+  { id: "arena", label: "Arena PvP", icon: Swords, color: "from-red-500 to-orange-500", bgImage: duels.src },
+  { id: "skywars",  label: "SkyWars",  icon: Trophy, color: "from-purple-500 to-pink-500",  bgImage: skywars.src, maintenance: true },
+  { id: "survival", label: "Survival", icon: Crown,  color: "from-emerald-500 to-lime-400",  bgImage: survival.src, maintenance: true },
+  { id: "duels",    label: "Duels",    icon: Swords, color: "from-sky-500 to-blue-500",      bgImage: duels.src, maintenance: true },
 ];
 
 
 
 export default function Leaderboard() {
-  const [selectedMode, setSelectedMode] = useState("skywars");
+  const [selectedMode, setSelectedMode] = useState("arena");
   const [selectedMetric, setSelectedMetric] = useState("kills");
   const { data, isLoading } = useLeaderboard(selectedMode, selectedMetric);
+  const { data: arenaData, isLoading: arenaLoading } = useArenaLeaderboard();
   const { data: playersCount, isLoading: playersLoading } = usePlayersCount();
   const { data: playersPlaytime, isLoading: playersHoursLoading } = usePlayersCountHours();
 
@@ -132,13 +136,16 @@ export default function Leaderboard() {
               return (
                 <motion.button
                   key={mode.id}
-                  onClick={() => setSelectedMode(mode.id)}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  onClick={() => !mode.maintenance && setSelectedMode(mode.id)}
+                  disabled={mode.maintenance}
+                  whileHover={{ scale: mode.maintenance ? 1 : 1.02 }}
+                  whileTap={{ scale: mode.maintenance ? 1 : 0.98 }}
                   className={cn(
                     "relative p-6 rounded-2xl border-2 transition-all overflow-hidden group",
                     isSelected
                       ? "border-white/20 bg-white/5"
+                      : mode.maintenance
+                      ? "border-gray-700 bg-gray-900/50 opacity-60 cursor-not-allowed"
                       : "border-white/10 bg-[#1a1a24] hover:border-white/20"
                   )}
                 >
@@ -161,14 +168,16 @@ export default function Leaderboard() {
                   )}
 
                   <div className="relative z-10 flex items-center gap-4">
-                    <div className={cn(
-                      "w-14 h-14 rounded-xl flex items-center justify-center transition-colors",
-                      isSelected
-                        ? `bg-gradient-to-br ${mode.color} text-white`
-                        : "bg-white/5 text-gray-400 group-hover:text-white"
-                    )}>
-                      <Icon className="w-7 h-7" />
-                    </div>
+                     <div className={cn(
+                       "w-14 h-14 rounded-xl flex items-center justify-center transition-colors",
+                       isSelected
+                         ? `bg-gradient-to-br ${mode.color} text-white`
+                         : mode.maintenance
+                         ? "bg-gray-800 text-gray-600"
+                         : "bg-white/5 text-gray-400 group-hover:text-white"
+                     )}>
+                       <Icon className="w-7 h-7" />
+                     </div>
 
                     <div className="text-left">
                       <h2 className={cn(
@@ -178,9 +187,11 @@ export default function Leaderboard() {
                         {mode.label}
                       </h2>
                       <p className="text-xs text-gray-500">
+                        {mode.id === "arena" && "Combate PvP en Arena"}
                         {mode.id === "skywars" && "Combate PvP en Islas Flotantes"}
                         {mode.id === "survival" && "Modo Clasico"}
                         {mode.id === "duels" && "Combate 1v1"}
+                        {mode.maintenance && "En mantenimiento"}
                       </p>
                     </div>
 
@@ -200,7 +211,7 @@ export default function Leaderboard() {
             transition={{ delay: 0.4 }}
             className="flex flex-wrap justify-center gap-3 mb-8"
           >
-            {METRICS.map((metric) => {
+            {METRICS.filter(metric => metric.modes.includes(selectedMode)).map((metric) => {
               const Icon = metric.icon;
               const isSelected = selectedMetric === metric.id;
               
@@ -254,11 +265,19 @@ export default function Leaderboard() {
             </div>
 
             {/* Table */}
-            <LeaderboardTable 
-              data={data || []} 
-              isLoading={isLoading} 
-              metricLabel={METRICS.find(m => m.id === selectedMetric)?.label || "Valor"} 
-            />
+            {selectedMode === "arena" ? (
+              <ArenaLeaderboardTable 
+                data={arenaData || []} 
+                isLoading={arenaLoading} 
+                metricLabel={METRICS.find(m => m.id === selectedMetric)?.label || "Valor"} 
+              />
+            ) : (
+              <LeaderboardTable 
+                data={data || []} 
+                isLoading={isLoading} 
+                metricLabel={METRICS.find(m => m.id === selectedMetric)?.label || "Valor"} 
+              />
+            )}
           </motion.div>
 
           {/* CTA Section */}
