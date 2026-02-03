@@ -423,7 +423,7 @@ app.get("/api/arena/leaderboard", async (req, res) => {
     console.log("Fetching arena leaderboard data...");
     
     // Get casual (informal) stats usando la columna 'won'
-    const casualStats = await query(`
+    const casualStats = await q(`
       SELECT 
         player_uuid as uuid,
         player_name as username,
@@ -436,7 +436,7 @@ app.get("/api/arena/leaderboard", async (req, res) => {
     `);
 
     // Get competitive stats usando la columna 'won'
-    const competitiveStats = await query(`
+    const competitiveStats = await q(`
       SELECT 
         player_uuid as uuid,
         player_name as username,
@@ -491,7 +491,7 @@ app.get("/api/arena/leaderboard", async (req, res) => {
     const rankMap = new Map();
     
     if (allUsernames.length > 0) {
-      const rankData = await query(`
+      const rankData = await q(`
         SELECT u.username, g.display_name
         FROM users u
         LEFT JOIN user_groups ug ON ug.user_id = u.id AND ug.is_primary = 1
