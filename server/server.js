@@ -1417,7 +1417,7 @@ app.get("/api/admin/users", async (req, res) => {
 // Original endpoints with auth (kept for production)
 app.get("/api/admin/groups", async (req, res) => {
   try {
-    const groups = await query(`
+    const groups = await q(`
       SELECT g.id, g.name, g.display_name, g.weight, g.is_default,
              (SELECT COUNT(*) FROM group_permissions gp WHERE gp.group_id = g.id) as permission_count,
              (SELECT COUNT(*) FROM user_groups ug WHERE ug.group_id = g.id) as member_count
