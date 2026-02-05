@@ -21,16 +21,15 @@ import duels from "@/public/assets/bg-adventure--3.jpg";
 
 
 const METRICS = [
-    { id: "kills", label: "Asesinatos", icon: Target, modes: ["arena", "skywars", "survival", "duels"] },
-    { id: "wins", label: "Victorias", icon: Crown, modes: ["arena", "skywars", "survival", "duels"] },
-    { id: "playtime", label: "Tiempo de Juego", icon: Clock, modes: ["skywars", "survival", "duels"] },
+    { id: "kills", label: "Asesinatos", icon: Target, modes: ["arena", "skywars", "survival"] },
+    { id: "wins", label: "Victorias", icon: Crown, modes: ["arena", "skywars", "survival"] },
+    { id: "playtime", label: "Tiempo de Juego", icon: Clock, modes: ["skywars", "survival"] },
   ];
 
 const MODES = [
   { id: "arena", label: "Arena PvP", icon: Swords, color: "from-red-500 to-orange-500", bgImage: duels.src },
   { id: "skywars",  label: "SkyWars",  icon: Trophy, color: "from-purple-500 to-pink-500",  bgImage: skywars.src, maintenance: true },
   { id: "survival", label: "Survival", icon: Crown,  color: "from-emerald-500 to-lime-400",  bgImage: survival.src, maintenance: true },
-  { id: "duels",    label: "Duels",    icon: Swords, color: "from-sky-500 to-blue-500",      bgImage: duels.src, maintenance: true },
 ];
 
 
