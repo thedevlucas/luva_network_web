@@ -868,6 +868,120 @@ app.delete("/api/admin/ranks/:id", requireAuth, requireAdmin, async (req, res) =
   }
 });
 
+// Update existing rank
+app.put("/api/admin/ranks/:id", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const b = req.body || {};
+
+    const rows = await q("SELECT id FROM ranks WHERE id = ? LIMIT 1", [id]);
+    if (!rows?.length) {
+      return res.status(404).json({ error: "Not found" });
+    }
+
+    const sets = [];
+    const vals = [];
+    const mapping = {
+      name: "name",
+      displayName: "display_name",
+      price: "price",
+      color: "color",
+      order: "sort_order",
+      isPopular: "is_popular",
+      prefix: "prefix"
+    };
+
+    for (const [k, col] of Object.entries(mapping)) {
+      if (typeof b[k] === "undefined") continue;
+      if (k === "isPopular") {
+        sets.push(`${col} = ?`);
+        vals.push(b[k] ? 1 : 0);
+      } else if (k === "price" || k === "order") {
+        sets.push(`${col} = ?`);
+        vals.push(Number(b[k]) || 0);
+      } else {
+        sets.push(`${col} = ?`);
+        vals.push(b[k]);
+      }
+    }
+
+    if (sets.length > 0) {
+      vals.push(id);
+      await q(`UPDATE ranks SET ${sets.join(", ")} WHERE id = ?`, vals);
+    }
+
+    // Return updated rank
+    const [updatedRank] = await q("SELECT * FROM ranks WHERE id = ? LIMIT 1", [id]);
+    const [rankBenefits] = await q("SELECT * FROM rank_benefits WHERE rank_id = ? ORDER BY sort_order ASC", [id]);
+
+    res.json({
+      id: String(updatedRank.id),
+      name: updatedRank.name,
+      displayName: updatedRank.display_name,
+      price: Number(updatedRank.price),
+      color: updatedRank.color,
+      order: Number(updatedRank.sort_order),
+      prefix: updatedRank.prefix || "",
+      benefits: rankBenefits.map(b => ({
+        id: String(b.id),
+        text: b.text,
+        order: Number(b.sort_order),
+      })),
+      isPopular: !!Number(updatedRank.is_popular || 0),
+    });
+  } catch (e) {
+    console.error("PUT /api/admin/ranks/:id error:", e);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// Update existing group
+app.patch("/api/admin/groups/:name", async (req, res) => {
+  try {
+    const groupName = req.params.name;
+    const b = req.body || {};
+
+    const rows = await q("SELECT id, name, display_name, weight, is_default FROM `groups` WHERE name = ? LIMIT 1", [groupName]);
+    if (!rows?.length) {
+      return res.status(404).json({ error: "Group not found" });
+    }
+
+    const sets = [];
+    const vals = [];
+    const mapping = {
+      displayName: "display_name"
+    };
+
+    for (const [k, col] of Object.entries(mapping)) {
+      if (typeof b[k] === "undefined") continue;
+      sets.push(`${col} = ?`);
+      vals.push(b[k]);
+    }
+
+    if (sets.length > 0) {
+      vals.push(rows[0].id);
+      await q(`UPDATE \`groups\` SET ${sets.join(", ")} WHERE id = ?`, vals);
+    }
+
+    // Return updated group
+    const [updatedGroup] = await q("SELECT * FROM \`groups\` WHERE id = ? LIMIT 1", [rows[0].id]);
+    
+    res.json({
+      id: Number(updatedGroup.id),
+      name: updatedGroup.name,
+      displayName: updatedGroup.display_name || updatedGroup.name,
+      weight: Number(updatedGroup.weight || 0),
+      isDefault: !!Number(updatedGroup.is_default || 0),
+      type: "group",
+      permissionCount: 0,
+      memberCount: 0,
+    });
+  } catch (e) {
+    console.error("PATCH /api/admin/groups/:name error:", e);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
 function mapNewsRow(row) {
   return {
     id: String(row.id),

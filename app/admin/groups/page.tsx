@@ -25,6 +25,7 @@ import { useSearchParams } from "next/navigation";
 interface Group {
   id: number;
   name: string;
+  displayName: string;
   type: string;
   permissionCount: number;
   memberCount: number;
@@ -50,6 +51,7 @@ interface GroupMember {
 interface GroupDetail {
   id: number;
   name: string;
+  displayName: string;
   type: string;
   permissions: Permission[];
   members: GroupMember[];
@@ -72,6 +74,10 @@ export default function GroupsPage() {
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
   const [addingMember, setAddingMember] = useState(false);
+  const [showEditGroupModal, setShowEditGroupModal] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<Group | null>(null);
+  const [editDisplayName, setEditDisplayName] = useState("");
+  const [updatingGroup, setUpdatingGroup] = useState(false);
 
   useEffect(() => {
     fetchGroups();
@@ -95,6 +101,8 @@ export default function GroupsPage() {
       setLoadingDetail(true);
       const data = await apiFetch<GroupDetail>(`/api/admin/groups/${groupName}`);
       setSelectedGroup(data);
+      setEditDisplayName(data.displayName);
+      setShowEditGroupModal(true);
     } catch (err) {
       console.error("Error fetching group detail:", err);
       setError("Error al cargar el detalle del grupo");
@@ -137,6 +145,33 @@ export default function GroupsPage() {
     } catch (err) {
       console.error("Error deleting group:", err);
       setError("Error al eliminar el grupo");
+    }
+  };
+
+  const handleEditGroup = (group: Group) => {
+    // Fetch full group details for editing
+    fetchGroupDetail(group.name);
+    setEditDisplayName(group.displayName);
+  };
+
+  const handleUpdateGroup = async () => {
+    if (!selectedGroup || !editDisplayName.trim()) return;
+
+    try {
+      setUpdatingGroup(true);
+      await apiFetch(`/api/admin/groups/${selectedGroup.name}`, {
+        method: "PATCH",
+        body: JSON.stringify({ displayName: editDisplayName.trim() }),
+      });
+      setShowEditGroupModal(false);
+      setEditDisplayName("");
+      setEditingGroup(null);
+      fetchGroups();
+    } catch (err) {
+      console.error("Error updating group:", err);
+      setError("Error al actualizar el grupo");
+    } finally {
+      setUpdatingGroup(false);
     }
   };
 
@@ -307,30 +342,56 @@ export default function GroupsPage() {
                     }`}
                     onClick={() => fetchGroupDetail(group.name)}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                            group.name === "admin"
-                              ? "bg-red-500/20 text-red-400"
-                              : group.name === "mod"
-                              ? "bg-blue-500/20 text-blue-400"
-                              : group.name === "vip"
-                              ? "bg-green-500/20 text-green-400"
-                              : "bg-[#965CD9]/20 text-[#965CD9]"
-                          }`}
-                        >
-                          <Shield className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="text-white font-medium capitalize">{group.name}</p>
-                          <p className="text-gray-500 text-xs">
-                            {group.permissionCount} permisos - {group.memberCount} miembros
-                          </p>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-gray-500" />
-                    </div>
+<div className="flex items-center justify-between">
+                     <div className="flex items-center gap-3">
+                       <div
+                         className={`w-14 h-14 rounded-xl flex items-center justify-center ${
+                           group.name === "admin"
+                             ? "bg-red-500/20 text-red-400"
+                             : group.name === "mod"
+                             ? "bg-blue-500/20 text-blue-400"
+                             : group.name === "vip"
+                             ? "bg-green-500/20 text-green-400"
+                             : "bg-[#965CD9]/20 text-[#965CD9]"
+                         }`}
+                       >
+                         <Shield className="w-5 h-5" />
+                       </div>
+                       <div>
+                         <p className="text-white font-medium capitalize">{group.name}</p>
+                         <p className="text-gray-400 text-sm">
+                           {group.displayName}
+                         </p>
+                         <p className="text-gray-500 text-xs">
+                           {group.permissionCount} permisos - {group.memberCount} miembros
+                         </p>
+                       </div>
+                     </div>
+                     <div className="flex items-center gap-2">
+                       {group.name !== "default" && (
+                         <>
+                           <button
+                             onClick={() => handleEditGroup(group)}
+                             className="p-2 rounded-lg bg-[#965CD9]/10 hover:bg-[#965CD9]/20 text-[#B58CFF] transition-colors cursor-pointer"
+                             title="Editar grupo"
+                           >
+                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-11a2 2 0 0 0-2-2z" />
+                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m9 9 6-6 6 6" />
+                             </svg>
+                           </button>
+                           <button
+                             onClick={() => handleDeleteGroup(group.name)}
+                             className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors cursor-pointer"
+                             title="Eliminar grupo"
+                           >
+                             <Trash2 className="w-4 h-4" />
+                           </button>
+                         </>
+                       )}
+                       <ChevronRight className="w-5 h-5 text-gray-500" />
+                     </div>
+                   </div>
                   </motion.div>
                 ))}
               </div>
@@ -663,7 +724,63 @@ export default function GroupsPage() {
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+</AnimatePresence>
+
+      {/* Edit Group Modal */}
+      <AnimatePresence>
+        {showEditGroupModal && selectedGroup && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#1a1a24] rounded-2xl w-full max-w-md overflow-hidden"
+            >
+              <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                <h2 className="text-xl font-display text-white">Editar Grupo</h2>
+                <button
+                  onClick={() => setShowEditGroupModal(false)}
+                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="p-3 bg-[#0a0a0e] rounded-lg">
+                  <p className="text-gray-400 text-sm">Grupo:</p>
+                  <p className="text-white font-medium capitalize">{selectedGroup.name}</p>
+                </div>
+                <div>
+                  <label className="text-gray-400 text-sm mb-2 block">Display Name</label>
+                  <input
+                    type="text"
+                    value={editDisplayName}
+                    onChange={(e) => setEditDisplayName(e.target.value)}
+                    placeholder="Nombre para mostrar del grupo"
+                    className="w-full px-4 py-3 bg-[#0a0a0e] border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-[#965CD9]/50"
+                  />
+                </div>
+              </div>
+              <div className="p-6 border-t border-white/5 flex gap-3">
+                <button
+                  onClick={() => setShowEditGroupModal(false)}
+                  className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleUpdateGroup}
+                  disabled={updatingGroup || !editDisplayName.trim()}
+                  className="flex-1 px-4 py-3 bg-[#965CD9] hover:bg-[#A878E6] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {updatingGroup ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
+                  Actualizar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
