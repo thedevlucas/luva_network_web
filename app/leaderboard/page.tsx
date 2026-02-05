@@ -189,7 +189,6 @@ export default function Leaderboard() {
                         {mode.id === "arena" && "Combate PvP en Arena"}
                         {mode.id === "skywars" && "Combate PvP en Islas Flotantes"}
                         {mode.id === "survival" && "Modo Clasico"}
-                        {mode.id === "duels" && "Combate 1v1"}
                         {mode.maintenance && "En mantenimiento"}
                       </p>
                     </div>
