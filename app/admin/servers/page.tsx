@@ -57,7 +57,16 @@ export default function ServersPage() {
 
   useEffect(() => {
     fetchServers();
-  }, []);
+    
+    // Auto-refresh servers data every 15 seconds
+    const interval = setInterval(() => {
+      if (!loading) {
+        fetchServers();
+      }
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [loading]);
 
   const fetchServers = async () => {
     try {

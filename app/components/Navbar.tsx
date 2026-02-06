@@ -35,12 +35,18 @@ export function Navbar() {
           const playersRes = await fetch(`${baseUrl}/api/servers/total-players`, {
             method: "GET",
             cache: "no-store",
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0'
+            }
           });
           
           if (playersRes.ok) {
             const playersData = await playersRes.json();
             if (playersData.success) {
               setPlayersOnline(playersData.totalPlayers || 0);
+              console.log(`Real-time player count updated: ${playersData.totalPlayers}`, playersData);
             }
           }
         }
@@ -51,7 +57,7 @@ export function Navbar() {
 
     fetchServerStatus();
     
-    const statusInterval = setInterval(fetchServerStatus, 30000);
+    const statusInterval = setInterval(fetchServerStatus, 10000); // Update every 10 seconds for real-time data
 
     return () => {
       clearInterval(statusInterval);

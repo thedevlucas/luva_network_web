@@ -1358,135 +1358,9 @@ app.get("/api/players/hours_count", async (_req, res) => {
   }
 });
 
-// Test endpoint - si este funciona, las rutas se estan registrando
 app.get("/api/admin/test", (req, res) => {
   res.json({ ok: true, message: "Admin routes are registered" });
 });
-
-// Temporary admin endpoints without auth for testing
-// COMENTADO - Endpoint duplicado con datos hardcodeados
-// app.get("/api/admin/groups", async (req, res) => {
-//   try {
-//     const groups = [
-//       {
-//         id: 1,
-//         name: "default",
-//         displayName: "Usuario",
-//         weight: 0,
-//         isDefault: true,
-//         type: "group",
-//         permissionCount: 0,
-//         memberCount: 2,
-//       },
-//       {
-//         id: 2,
-//         name: "vip",
-//         displayName: "VIP",
-//         weight: 10,
-//         isDefault: false,
-//         type: "group", 
-//         permissionCount: 0,
-//         memberCount: 1,
-//       },
-//       {
-//         id: 3,
-//         name: "admin",
-//         displayName: "Administrador",
-//         weight: 500,
-//         isDefault: false,
-//         type: "group",
-//         permissionCount: 8,
-//         memberCount: 2,
-//       }
-//     ];
-
-//     res.json(groups);
-//   } catch (e) {
-//     console.error("GET /api/admin/groups (no auth) error:", e);
-//     return res.status(500).json({ error: "Internal error" });
-//   }
-// });
-
-// COMENTADO - Endpoint duplicado con datos hardcodeados
-// app.get("/api/admin/groups/:name", async (req, res) => {
-//   try {
-//     const groupName = req.params.name;
-//     
-//     const groups = {
-//       "default": {
-//         id: 1,
-//         name: "default",
-//         displayName: "Usuario",
-//         weight: 0,
-//         isDefault: true,
-//         type: "group",
-//         permissions: [],
-//         members: [
-//           {
-//             id: 1,
-//             userId: 160,
-//             username: "imAndix",
-//             uuid: "2d440a28-d746-41d1-a2bd-906c3bc82832",
-//             isPrimary: true,
-//             expiresAt: null,
-//           }
-//         ]
-//       },
-//       "admin": {
-//         id: 3,
-//         name: "admin", 
-//         displayName: "Administrador",
-//         weight: 500,
-//         isDefault: false,
-//         type: "group",
-//         permissions: [
-//           {
-//             id: 1,
-//             permission: "luva.admin.breakblocks",
-//             value: 1,
-//             server: "global",
-//             world: "global"
-//           },
-//           {
-//             id: 2,
-//             permission: "luva.hologram.create",
-//             value: 1,
-//             server: "global",
-//             world: "global"
-//           }
-//         ],
-//         members: [
-//           {
-//             id: 2,
-//             userId: 2,
-//             username: "rehen",
-//             uuid: "b8acc972-307f-4ed3-8083-f7941cb24c8b",
-//             isPrimary: true,
-//             expiresAt: null,
-//           },
-//           {
-//             id: 3,
-//             userId: 152,
-//             username: "Carriedo",
-//             uuid: "cf97dc66-495a-4e07-a932-e821b5c75af8",
-//             isPrimary: true,
-//             expiresAt: null,
-//           }
-//         ]
-//       }
-//     };
-// 
-//     const group = groups[groupName];
-//     if (!group) {
-//       return res.status(404).json({ error: "Group not found" });
-//     }
-// 
-//     res.json(group);
-//   } catch (e) {
-//     console.error("GET /api/admin/groups/:name (no auth) error:", e);
-//     return res.status(500).json({ error: "Internal error" });
-//   }
-// });
 
 app.get("/api/admin/stats", async (req, res) => {
   try {
@@ -1931,6 +1805,20 @@ app.delete("/api/admin/groups/:name", requireAuth, requireAdmin, async (req, res
 // Helper function to check server status via HTTP API
 async function checkServerStatus(host, port, serverName) {
   try {
+    // For development/testing: simulate server responses
+    if (process.env.NODE_ENV !== 'production') {
+      // Simulate different player counts for different servers
+      const simulatedData = {
+        'survival': { online: true, currentPlayers: Math.floor(Math.random() * 50) + 20, maxPlayers: 100, status: 'online' },
+        'skyblock': { online: true, currentPlayers: Math.floor(Math.random() * 30) + 10, maxPlayers: 50, status: 'online' },
+      };
+      
+      if (simulatedData[serverName]) {
+        console.log(`[SIMULATION] ${serverName}: ${simulatedData[serverName].currentPlayers} players`);
+        return simulatedData[serverName];
+      }
+    }
+
     const response = await fetch(`http://${host}:${port}/api/servers/${serverName}`, {
       method: 'GET',
       headers: {
@@ -2096,6 +1984,31 @@ app.post("/api/admin/servers/:id/check-status", requireAuth, requireAdmin, async
 // Get total player count from all active servers
 app.get("/api/servers/total-players", async (req, res) => {
   try {
+    // First, check status of all active servers to get real-time data
+    const servers = await q("SELECT id, name, host, port FROM servers WHERE is_active = TRUE");
+    
+    // Check each server status in parallel
+    const checkPromises = servers.map(async (server) => {
+      try {
+        const statusData = await checkServerStatus(server.host, server.port, server.name);
+        
+        // Update server with real-time data
+        await q(`
+          UPDATE servers 
+          SET current_players = ?, status = ?, last_check = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `, [statusData.currentPlayers, statusData.online ? 'online' : 'offline', server.id]);
+        
+        return statusData;
+      } catch (error) {
+        console.error(`Error checking server ${server.name}:`, error.message);
+        return null;
+      }
+    });
+
+    const results = await Promise.allSettled(checkPromises);
+    
+    // Get updated total from database
     const result = await q(`
       SELECT SUM(current_players) as total_players, COUNT(*) as server_count
       FROM servers 
@@ -2107,7 +2020,8 @@ app.get("/api/servers/total-players", async (req, res) => {
       success: true,
       totalPlayers: Number(data.total_players || 0),
       serverCount: Number(data.server_count || 0),
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      realTimeCheck: true
     });
   } catch (e) {
     console.error("GET /api/servers/total-players error:", e);
