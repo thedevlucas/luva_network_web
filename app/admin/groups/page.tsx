@@ -180,16 +180,34 @@ export default function GroupsPage() {
 
     try {
       setAddingPermission(true);
-      await apiFetch(`/api/admin/groups/${selectedGroup.name}/permissions`, {
+      
+      // Parse permissions: split by comma or new lines
+      const permissions = newPermission
+        .split(/[,\n]+/)
+        .map(p => p.trim())
+        .filter(p => p.length > 0);
+      
+      const response = await apiFetch(`/api/admin/groups/${selectedGroup.name}/permissions`, {
         method: "POST",
-        body: JSON.stringify({ permission: newPermission.trim() }),
-      });
+        body: JSON.stringify({ permissions }),
+      }) as any;
+      
       setShowAddPermissionModal(false);
       setNewPermission("");
       fetchGroupDetail(selectedGroup.name);
+      
+      // Show success message with results
+      if (response.results) {
+        const { added, skipped, errors } = response.results;
+        let message = `Agregados: ${added.length}`;
+        if (skipped.length > 0) message += ` | Ya existían: ${skipped.length}`;
+        if (errors.length > 0) message += ` | Errores: ${errors.length}`;
+        setError(message);
+        setTimeout(() => setError(null), 5000);
+      }
     } catch (err) {
       console.error("Error adding permission:", err);
-      setError("Error al agregar el permiso");
+      setError("Error al agregar los permisos");
     } finally {
       setAddingPermission(false);
     }
@@ -637,14 +655,17 @@ export default function GroupsPage() {
                   <p className="text-white font-medium capitalize">{selectedGroup.name}</p>
                 </div>
                 <div>
-                  <label className="text-gray-400 text-sm mb-2 block">Permiso</label>
-                  <input
-                    type="text"
+                  <label className="text-gray-400 text-sm mb-2 block">Permisos (uno por línea o separados por comas)</label>
+                  <textarea
                     value={newPermission}
                     onChange={(e) => setNewPermission(e.target.value)}
-                    placeholder="ej: essentials.fly, worldedit.wand"
-                    className="w-full px-4 py-3 bg-[#0a0a0e] border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-[#965CD9]/50 font-mono text-sm"
+                    placeholder="ej: essentials.fly&#10;worldedit.wand&#10;essentials.gamemode&#10;&#10;o separados por coma:&#10;essentials.fly, worldedit.wand, essentials.gamemode"
+                    className="w-full px-4 py-3 bg-[#0a0a0e] border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-[#965CD9]/50 font-mono text-sm h-32 resize-none"
+                    rows={6}
                   />
+                  <p className="text-gray-500 text-xs mt-2">
+                    Puedes pegar múltiples permisos separados por comas o uno por línea
+                  </p>
                 </div>
               </div>
               <div className="p-6 border-t border-white/5 flex gap-3">

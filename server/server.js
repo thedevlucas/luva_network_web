@@ -1638,10 +1638,13 @@ app.get("/api/admin/groups/:name", requireAuth, requireAdmin, async (req, res) =
 app.post("/api/admin/groups/:name/permissions", requireAuth, requireAdmin, async (req, res) => {
   try {
     const groupName = req.params.name;
-    const { permission, value = true, server = "global", world = "global" } = req.body || {};
+    const { permission, permissions, value = true, server = "global", world = "global" } = req.body || {};
 
-    if (!permission) {
-      return res.status(400).json({ error: "Permission is required" });
+    // Support both single permission and bulk permissions
+    const permissionList = permissions || (permission ? [permission] : []);
+
+    if (permissionList.length === 0) {
+      return res.status(400).json({ error: "At least one permission is required" });
     }
 
     const groups = await q("SELECT id FROM `groups` WHERE name = ? LIMIT 1", [groupName]);
@@ -1649,22 +1652,45 @@ app.post("/api/admin/groups/:name/permissions", requireAuth, requireAdmin, async
       return res.status(404).json({ error: "Group not found" });
     }
 
-    const existing = await q(
-      "SELECT id FROM group_permissions WHERE group_id = ? AND permission = ? LIMIT 1",
-      [groups[0].id, permission]
-    );
+    const groupId = groups[0].id;
+    const results = {
+      added: [],
+      skipped: [],
+      errors: []
+    };
 
-    if (existing && existing.length > 0) {
-      return res.status(400).json({ error: "Permission already exists for this group" });
+    // Process each permission
+    for (const perm of permissionList) {
+      try {
+        // Check if permission already exists
+        const existing = await q(
+          "SELECT id FROM group_permissions WHERE group_id = ? AND permission = ? LIMIT 1",
+          [groupId, perm]
+        );
+
+        if (existing && existing.length > 0) {
+          results.skipped.push(perm);
+          continue;
+        }
+
+        // Insert new permission
+        await q(
+          `INSERT INTO group_permissions (group_id, permission, value, server, world)
+           VALUES (?, ?, ?, ?, ?)`,
+          [groupId, perm, value ? 1 : 0, server, world]
+        );
+
+        results.added.push(perm);
+      } catch (err) {
+        results.errors.push({ permission: perm, error: String(err) });
+      }
     }
 
-    await q(
-      `INSERT INTO group_permissions (group_id, permission, value, server, world)
-       VALUES (?, ?, ?, ?, ?)`,
-      [groups[0].id, permission, value ? 1 : 0, server, world]
-    );
-
-    res.json({ success: true, message: "Permission added" });
+    res.json({ 
+      success: true, 
+      message: `Processed ${permissionList.length} permissions`,
+      results 
+    });
   } catch (e) {
     console.error("POST /api/admin/groups/:name/permissions error:", e);
     res.status(500).json({ error: "DB error", details: String(e?.message ?? e) });
