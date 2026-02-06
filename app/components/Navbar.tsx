@@ -10,7 +10,7 @@ import { Button } from "./Button";
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
-  const [playersOnline, setPlayersOnline] = useState(1247);
+  const [playersOnline, setPlayersOnline] = useState(0);
   const [serverMaintenance, setServerMaintenance] = useState(false);
   const pathname = usePathname();
 
@@ -126,7 +126,7 @@ export function Navbar() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
                 </span>
-                <span className="text-xs font-mono font-bold text-gray-300">{playersOnline.toLocaleString()} En Linea</span>
+                <span className="text-xs font-mono font-bold text-gray-300">{playersOnline.toLocaleString()} Jugadores En Linea</span>
               </div>
             )}
 
