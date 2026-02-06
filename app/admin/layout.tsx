@@ -18,6 +18,7 @@ import {
   Menu,
   X,
   Shield,
+  Server,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/app/contexts/AuthContext";
@@ -28,6 +29,7 @@ import logoImg from "@/app/assets/logoluva_1768898408478.png";
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/config", label: "Configuracion", icon: Settings },
+  { href: "/admin/servers", label: "Servidores", icon: Server },
   { href: "/admin/ranks", label: "Rangos", icon: Crown },
   { href: "/admin/groups", label: "Grupos", icon: Shield },
   { href: "/admin/news", label: "Noticias", icon: Newspaper },

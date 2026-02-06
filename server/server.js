@@ -193,6 +193,23 @@ async function ensureSchema() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
 
+  await q(`
+    CREATE TABLE IF NOT EXISTS servers (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(100) NOT NULL UNIQUE,
+      display_name VARCHAR(200) DEFAULT '',
+      host VARCHAR(255) NOT NULL DEFAULT '127.0.0.1',
+      port INT NOT NULL DEFAULT 1234,
+      max_players INT NOT NULL DEFAULT 100,
+      current_players INT DEFAULT 0,
+      status ENUM('online', 'offline', 'maintenance') DEFAULT 'offline',
+      description TEXT,
+      last_check TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      is_active BOOLEAN DEFAULT TRUE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
   const existing = await q("SELECT id FROM web_settings WHERE id = 1 LIMIT 1");
   if (!existing || existing.length === 0) {
     await q(
@@ -1906,6 +1923,232 @@ app.delete("/api/admin/groups/:name", requireAuth, requireAdmin, async (req, res
   } catch (e) {
     console.error("DELETE /api/admin/groups/:name error:", e);
     return res.status(500).json({ error: "DB error", details: String(e?.message ?? e) });
+  }
+});
+
+// Server Management API Endpoints
+
+// Helper function to check server status via HTTP API
+async function checkServerStatus(host, port, serverName) {
+  try {
+    const response = await fetch(`http://${host}:${port}/api/servers/${serverName}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'LuvaNetwork-Web/1.0'
+      },
+      timeout: 5000
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success) {
+        return {
+          online: true,
+          currentPlayers: data.current_players || 0,
+          maxPlayers: data.max_players || 0,
+          status: data.status || 'unknown'
+        };
+      }
+    }
+  } catch (error) {
+    console.error(`Error checking server ${serverName} at ${host}:${port}:`, error.message);
+  }
+  
+  return {
+    online: false,
+    currentPlayers: 0,
+    maxPlayers: 0,
+    status: 'offline'
+  };
+}
+
+// Get all servers
+app.get("/api/admin/servers", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const servers = await q(`
+      SELECT id, name, display_name, host, port, max_players, current_players, 
+             status, description, last_check, created_at, is_active
+      FROM servers 
+      ORDER BY is_active DESC, name ASC
+    `);
+    
+    res.json(servers.map(s => ({
+      id: Number(s.id),
+      name: s.name,
+      displayName: s.display_name,
+      host: s.host,
+      port: Number(s.port),
+      maxPlayers: Number(s.max_players),
+      currentPlayers: Number(s.current_players),
+      status: s.status,
+      description: s.description,
+      lastCheck: s.last_check,
+      createdAt: s.created_at,
+      isActive: Boolean(s.is_active)
+    })));
+  } catch (e) {
+    console.error("GET /api/admin/servers error:", e);
+    res.status(500).json({ error: "DB error", details: String(e?.message ?? e) });
+  }
+});
+
+// Add new server
+app.post("/api/admin/servers", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { name, displayName, host = '127.0.0.1', port = 1234, maxPlayers = 100, description = '' } = req.body || {};
+
+    if (!name) {
+      return res.status(400).json({ error: "Server name is required" });
+    }
+
+    // Check if server already exists
+    const existing = await q("SELECT id FROM servers WHERE name = ? LIMIT 1", [name]);
+    if (existing && existing.length > 0) {
+      return res.status(400).json({ error: "Server already exists" });
+    }
+
+    await q(`
+      INSERT INTO servers (name, display_name, host, port, max_players, description)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [name, displayName || name, host, port, maxPlayers, description]);
+
+    res.json({ success: true, message: "Server added successfully" });
+  } catch (e) {
+    console.error("POST /api/admin/servers error:", e);
+    res.status(500).json({ error: "DB error", details: String(e?.message ?? e) });
+  }
+});
+
+// Update server
+app.put("/api/admin/servers/:id", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, displayName, host, port, maxPlayers, description, isActive, currentPlayers, status } = req.body || {};
+
+    const server = await q("SELECT id FROM servers WHERE id = ? LIMIT 1", [id]);
+    if (!server || server.length === 0) {
+      return res.status(404).json({ error: "Server not found" });
+    }
+
+    await q(`
+      UPDATE servers 
+      SET name = ?, display_name = ?, host = ?, port = ?, max_players = ?, description = ?, is_active = ?, current_players = ?, status = ?
+      WHERE id = ?
+    `, [name, displayName, host, port, maxPlayers, description, isActive, currentPlayers || 0, status || 'offline', id]);
+
+    res.json({ success: true, message: "Server updated successfully" });
+  } catch (e) {
+    console.error("PUT /api/admin/servers/:id error:", e);
+    res.status(500).json({ error: "DB error", details: String(e?.message ?? e) });
+  }
+});
+
+// Delete server
+app.delete("/api/admin/servers/:id", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const server = await q("SELECT id FROM servers WHERE id = ? LIMIT 1", [id]);
+    if (!server || server.length === 0) {
+      return res.status(404).json({ error: "Server not found" });
+    }
+
+    await q("DELETE FROM servers WHERE id = ?", [id]);
+
+    res.json({ success: true, message: "Server deleted successfully" });
+  } catch (e) {
+    console.error("DELETE /api/admin/servers/:id error:", e);
+    res.status(500).json({ error: "DB error", details: String(e?.message ?? e) });
+  }
+});
+
+// Update server status (real-time check)
+app.post("/api/admin/servers/:id/check-status", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const server = await q("SELECT id, name, host, port FROM servers WHERE id = ? LIMIT 1", [id]);
+    if (!server || server.length === 0) {
+      return res.status(404).json({ error: "Server not found" });
+    }
+
+    const srv = server[0];
+    const statusData = await checkServerStatus(srv.host, srv.port, srv.name);
+
+    await q(`
+      UPDATE servers 
+      SET current_players = ?, status = ?, last_check = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `, [statusData.currentPlayers, statusData.online ? 'online' : 'offline', id]);
+
+    res.json({ 
+      success: true, 
+      message: "Server status updated",
+      status: statusData
+    });
+  } catch (e) {
+    console.error("POST /api/admin/servers/:id/check-status error:", e);
+    res.status(500).json({ error: "Error checking server status", details: String(e?.message ?? e) });
+  }
+});
+
+// Get total player count from all active servers
+app.get("/api/servers/total-players", async (req, res) => {
+  try {
+    const result = await q(`
+      SELECT SUM(current_players) as total_players, COUNT(*) as server_count
+      FROM servers 
+      WHERE is_active = TRUE AND status = 'online'
+    `);
+    
+    const data = result[0];
+    res.json({
+      success: true,
+      totalPlayers: Number(data.total_players || 0),
+      serverCount: Number(data.server_count || 0),
+      timestamp: Date.now()
+    });
+  } catch (e) {
+    console.error("GET /api/servers/total-players error:", e);
+    res.status(500).json({ error: "DB error", details: String(e?.message ?? e) });
+  }
+});
+
+// Auto-check all servers status
+app.post("/api/admin/servers/check-all", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const servers = await q("SELECT id, name, host, port FROM servers WHERE is_active = TRUE");
+    
+    let updatedCount = 0;
+    const errors = [];
+
+    for (const server of servers) {
+      try {
+        const statusData = await checkServerStatus(server.host, server.port, server.name);
+        
+        await q(`
+          UPDATE servers 
+          SET current_players = ?, status = ?, last_check = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `, [statusData.currentPlayers, statusData.online ? 'online' : 'offline', server.id]);
+        
+        updatedCount++;
+      } catch (error) {
+        errors.push({ server: server.name, error: error.message });
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Checked ${servers.length} servers, updated ${updatedCount}`,
+      updatedServers: updatedCount,
+      totalServers: servers.length,
+      errors
+    });
+  } catch (e) {
+    console.error("POST /api/admin/servers/check-all error:", e);
+    res.status(500).json({ error: "Error checking servers", details: String(e?.message ?? e) });
   }
 });
 

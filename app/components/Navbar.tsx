@@ -18,14 +18,31 @@ export function Navbar() {
     const fetchServerStatus = async () => {
       try {
         const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8080";
-        const res = await fetch(`${baseUrl}/api/settings/general`, {
+        
+        // Fetch general settings
+        const settingsRes = await fetch(`${baseUrl}/api/settings/general`, {
           method: "GET",
           cache: "no-store",
         });
         
-        if (res.ok) {
-          const data = await res.json();
+        if (settingsRes.ok) {
+          const data = await settingsRes.json();
           setServerMaintenance(data.serverMaintenance || false);
+        }
+
+        // Fetch total players from all servers if not in maintenance
+        if (!serverMaintenance) {
+          const playersRes = await fetch(`${baseUrl}/api/servers/total-players`, {
+            method: "GET",
+            cache: "no-store",
+          });
+          
+          if (playersRes.ok) {
+            const playersData = await playersRes.json();
+            if (playersData.success) {
+              setPlayersOnline(playersData.totalPlayers || 0);
+            }
+          }
         }
       } catch (error) {
         console.error("Error fetching server status:", error);
@@ -36,15 +53,8 @@ export function Navbar() {
     
     const statusInterval = setInterval(fetchServerStatus, 30000);
 
-    const playersInterval = setInterval(() => {
-      if (!serverMaintenance) {
-        setPlayersOnline(prev => prev + Math.floor(Math.random() * 20) - 10);
-      }
-    }, 8000);
-
     return () => {
       clearInterval(statusInterval);
-      clearInterval(playersInterval);
     };
   }, [serverMaintenance]);
 
