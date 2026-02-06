@@ -38,6 +38,7 @@ interface ServerData {
 export default function ServersPage() {
   const [servers, setServers] = useState<ServerData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingServer, setEditingServer] = useState<ServerData | null>(null);
@@ -70,7 +71,7 @@ export default function ServersPage() {
 
   const fetchServers = async () => {
     try {
-      setLoading(true);
+      if (!initialLoad) setLoading(true);
       const data = await apiFetch<ServerData[]>("/api/admin/servers");
       setServers(data);
     } catch (err) {
@@ -78,6 +79,7 @@ export default function ServersPage() {
       setError("Error al cargar los servidores");
     } finally {
       setLoading(false);
+      setInitialLoad(false);
     }
   };
 
@@ -281,7 +283,7 @@ export default function ServersPage() {
 
       {/* Servers List */}
       <div className="bg-[#1a1a24] rounded-xl border border-white/5 overflow-hidden">
-        {loading ? (
+        {loading || initialLoad ? (
           <div className="p-8 flex items-center justify-center">
             <Loader2 className="w-8 h-8 text-[#965CD9] animate-spin" />
           </div>

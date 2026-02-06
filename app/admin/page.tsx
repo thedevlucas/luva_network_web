@@ -21,6 +21,7 @@ import {
 import { useSettings } from "@/app/contexts/SettingsContext";
 import { adminApi } from "@/app/lib/adminApi";
 import { newsApi } from "@/app/lib/newsApi";
+import { apiFetch } from "@/app/lib/apiClient";
 import type { NewsPost } from "@/app/lib/store";
 
 interface ServerStatus {
@@ -41,6 +42,12 @@ export default function AdminDashboard() {
     totalRanks: 0,
     publishedNews: 0,
   });
+  const [serverStats, setServerStats] = useState({
+    totalServers: 0,
+    onlineServers: 0,
+    totalPlayers: 0,
+    totalSlots: 0,
+  });
   const [recentNews, setRecentNews] = useState<NewsPost[]>([]);
 
   useEffect(() => {
@@ -56,6 +63,36 @@ export default function AdminDashboard() {
             publishedNews: s.publishedNews,
           });
         }
+        
+        // Fetch server statistics
+        try {
+          const serverResponse = await apiFetch('/api/servers/total-players') as any;
+          if (mounted && serverResponse.success) {
+            const serversData = await apiFetch('/api/admin/servers') as any[];
+            if (serversData) {
+              const onlineServers = serversData.filter((s: any) => s.status === 'online' && s.isActive).length;
+              const totalSlots = serversData.reduce((sum: number, s: any) => sum + s.maxPlayers, 0);
+              
+              setServerStats({
+                totalServers: serversData.length,
+                onlineServers,
+                totalPlayers: serverResponse.totalPlayers,
+                totalSlots,
+              });
+            }
+          }
+        } catch (serverError) {
+          console.error("Error fetching server stats:", serverError);
+          if (mounted) {
+            setServerStats({
+              totalServers: 0,
+              onlineServers: 0,
+              totalPlayers: 0,
+              totalSlots: 0,
+            });
+          }
+        }
+        
         try {
           const posts = await newsApi.listAdmin();
           if (mounted) setRecentNews(posts);
@@ -68,6 +105,37 @@ export default function AdminDashboard() {
     })();
     return () => {
       mounted = false;
+    };
+  }, []);
+
+  // Auto-refresh server stats every 15 seconds
+  useEffect(() => {
+    let mounted = true;
+    const interval = setInterval(async () => {
+      try {
+        const serverResponse = await apiFetch('/api/servers/total-players') as any;
+        if (mounted && serverResponse.success) {
+          const serversData = await apiFetch('/api/admin/servers') as any[];
+          if (serversData) {
+            const onlineServers = serversData.filter((s: any) => s.status === 'online' && s.isActive).length;
+            const totalSlots = serversData.reduce((sum: number, s: any) => sum + s.maxPlayers, 0);
+            
+            setServerStats({
+              totalServers: serversData.length,
+              onlineServers,
+              totalPlayers: serverResponse.totalPlayers,
+              totalSlots,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Error refreshing server stats:", error);
+      }
+    }, 15000);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
     };
   }, []);
 
@@ -142,11 +210,46 @@ export default function AdminDashboard() {
     },
     {
       label: "Jugadores Online",
-      value: serverStatus?.online ? serverStatus.players : 0,
+      value: serverStats.totalPlayers,
       icon: Activity,
       color: "text-purple-400",
       bgColor: "bg-purple-500/10",
       borderColor: "border-purple-500/20",
+    },
+  ];
+
+  const serverStatCards = [
+    {
+      label: "Total Servidores",
+      value: serverStats.totalServers,
+      icon: Server,
+      color: "text-cyan-400",
+      bgColor: "bg-cyan-500/10",
+      borderColor: "border-cyan-500/20",
+    },
+    {
+      label: "Servidores En Línea",
+      value: `${serverStats.onlineServers}/${serverStats.totalServers}`,
+      icon: Wifi,
+      color: "text-green-400",
+      bgColor: "bg-green-500/10",
+      borderColor: "border-green-500/20",
+    },
+    {
+      label: "Capacidad Total",
+      value: `${serverStats.totalSlots} slots`,
+      icon: Globe,
+      color: "text-orange-400",
+      bgColor: "bg-orange-500/10",
+      borderColor: "border-orange-500/20",
+    },
+    {
+      label: "Uso de Red",
+      value: `${serverStats.totalSlots > 0 ? Math.round((serverStats.totalPlayers / serverStats.totalSlots) * 100) : 0}%`,
+      icon: TrendingUp,
+      color: "text-pink-400",
+      bgColor: "bg-pink-500/10",
+      borderColor: "border-pink-500/20",
     },
   ];
 
@@ -203,6 +306,33 @@ export default function AdminDashboard() {
             <p className="text-3xl font-bold text-white">{stat.value}</p>
           </motion.div>
         ))}
+      </div>
+
+      {/* Server Statistics */}
+      <div>
+        <h2 className="text-xl font-display text-white mb-4 flex items-center gap-2">
+          <Server className="w-5 h-5 text-[#965CD9]" />
+          Estadísticas de Servidores
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {serverStatCards.map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 + i * 0.1 }}
+              className={`bg-[#1a1a24] rounded-xl p-6 border ${stat.borderColor}`}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className={`w-12 h-12 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
+                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
+                </div>
+              </div>
+              <p className="text-gray-400 text-sm mb-1">{stat.label}</p>
+              <p className="text-3xl font-bold text-white">{stat.value}</p>
+            </motion.div>
+          ))}
+        </div>
       </div>
 
       {/* Server Status */}
